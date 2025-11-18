@@ -6,7 +6,7 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
 - Smart behaviour inside `deftest` vs REPL
 - Inline snapshots with automatic source editing
 - Full colour diffing
-- Auto-update mode to snapshots automatically (like Jest's `-u` flag)
+- Auto-update mode to snapshots automatically (like Jest’s `-u` flag)
 - Custom serialisers to handle timestamps, UUIDs, and custom types
 - Snapshot metadata to track creation date, platform, etc.
 
@@ -15,8 +15,11 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
 ### Clojure (deps.edn)
 
 ```clojure
-{:deps {io.github.waddie/still {:git/sha "…"}}}
+{:deps {io.github.waddie/still {:git/sha "…"}}
+ :aliases {:repl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}}}}
 ```
+
+**Note:** For best REPL experience with `snap!`, use nREPL 1.5.0 or later. This enables automatic file detection during REPL eval operations.
 
 ### Babashka (bb.edn)
 
@@ -90,6 +93,15 @@ Like `snap`, but stores expected values directly in source code. When called wit
 ;; Subsequent runs compare against inline value
 ```
 
+**REPL Usage:** For `snap!` to work when evaluating forms in the REPL (not loading files):
+
+- Use nREPL 1.5.1+ with CIDER 1.20+ (or equivalent modern client)
+- OR load the file instead of evaluating individual forms (C-c C-k in CIDER)
+- OR use `snap` instead for REPL-based testing
+- OR provide the expected value manually: `(snap! expr expected)`
+
+See the error message for detailed troubleshooting if `snap!` can’t detect your file location.
+
 ## Configuration
 
 Configure `still` via multiple sources (later sources override earlier):
@@ -141,13 +153,15 @@ export STILL_AUTO_UPDATE="false"
 
 ## Auto-update mode
 
-Update all mismatched snapshots automatically (like Jest's `-u`):
+Update all mismatched snapshots automatically (like Jest’s `-u`):
 
 ```sh
 # Via environment variable
 STILL_AUTO_UPDATE=true clj -M:test
+```
 
-# Or programmatically
+```clojure
+;; Or programmatically
 (require '[still.update :as update])
 (update/enable-auto-update!)
 ```

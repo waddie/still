@@ -32,7 +32,8 @@
    (let [color? (or (get opts :color?) (get opts :colour?) (config/color?))]
      (with-out-str (if color?
                      (dd/pretty-print diff-result)
-                     (dd/pretty-print diff-result))))))
+                     (dd/pretty-print diff-result
+                                      (dd/printer {:print-color false})))))))
 
 (defn diff-str
   "Generate a formatted diff string between expected and actual values.
