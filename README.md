@@ -6,7 +6,7 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
 - Smart behaviour inside `deftest` vs REPL
 - Inline snapshots with automatic source editing
 - Full colour diffing
-- Auto-update mode to snapshots automatically (like Jest’s `-u` flag)
+- Auto-update mode to snapshots automatically
 - Custom serialisers to handle timestamps, UUIDs, and custom types
 - Snapshot metadata to track creation date, platform, etc.
 
@@ -157,7 +157,7 @@ export STILL_AUTO_UPDATE="false"
 
 ## Auto-update mode
 
-Update all mismatched snapshots automatically (like Jest’s `-u`):
+Update all mismatched snapshots automatically
 
 ```sh
 # Via environment variable

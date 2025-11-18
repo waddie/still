@@ -8,7 +8,7 @@
 (ns still.update
   "Snapshot management utilities for bulk updates, pruning, and review.
 
-  Provides CLI-friendly operations for managing snapshots, similar to Jest's -u flag."
+  Provides CLI-friendly operations for managing snapshots."
   (:require [still.config :as config]
             [still.snapshot :as snapshot]
             #?(:clj [clojure.java.io :as io])
@@ -150,7 +150,7 @@
    :message "Review mode requires integration with test runner"})
 
 (defn cli-update
-  "CLI-friendly update command similar to Jest's -u flag.
+  "CLI-friendly update command.
 
   Enables auto-update mode for the current session and prints instructions."
   []
