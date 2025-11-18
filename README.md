@@ -1,6 +1,6 @@
 # still
 
-Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](https://github.com/juxt/snap) and [Ian Henry’s “My Kind of REPL”](https://ianthehenry.com/posts/my-kind-of-repl/)
+Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](https://github.com/juxt/snap) and [Ian Henry’s “My Kind of REPL”](https://ianthehenry.com/posts/my-kind-of-repl/).
 
 - Configure via deps.edn, bb.edn, project.clj, or runtime
 - Smart behaviour inside `deftest` vs REPL
@@ -95,8 +95,8 @@ Like `snap`, but stores expected values directly in source code. When called wit
 
 **REPL Usage:** For `snap!` to work when evaluating forms in the REPL (not loading files):
 
-- Use nREPL 1.5.1+ with CIDER 1.20+ (or equivalent modern client)
-- OR load the file instead of evaluating individual forms (C-c C-k in CIDER)
+- Use nREPL 1.5.0+ with a supporting client
+- OR load the file instead of evaluating individual forms
 - OR use `snap` instead for REPL-based testing
 - OR provide the expected value manually: `(snap! expr expected)`
 
