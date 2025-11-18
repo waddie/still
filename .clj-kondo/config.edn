@@ -1,0 +1,4 @@
+{:linters {:redefined-var {:exclude {still.config [get]}}
+           :refer-all {:level :warning}
+           :unresolved-var {:exclude [t/*testing-vars*]}
+           :unused-namespace {:exclude {still.config [cljs.reader]}}}}
