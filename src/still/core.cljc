@@ -236,8 +236,18 @@
                                   true))
                    (:not-found :error)
                    (throw (ex-info "Failed to update source file" result#))))
-               (throw (ex-info (str "Cannot resolve file path: " ~file)
-                               {:file ~file :line ~line}))))))
+               (throw
+                (ex-info
+                 (str
+                  "Cannot use snap! without expected value in REPL context.\n\n"
+                  "When evaluating code in the REPL (not loading from file), "
+                  "snap! cannot determine the source file location.\n\n"
+                  "Options:\n"
+                  "  1. Load the file instead of evaluating the form\n"
+                  "  2. Use (snap :key value) for REPL-based testing\n"
+                  "  3. After the first run, manually add the expected value:\n"
+                  "     (snap! (your-expr) expected-value)")
+                 {:file ~file :line ~line :context :repl}))))))
        ([value-expr expected]
         ;; Expected value provided - compare
         (let [file *file*

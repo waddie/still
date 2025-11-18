@@ -48,23 +48,25 @@
 
   Returns nil if file cannot be found."
   [filename]
-  ;; If already an absolute path and exists, return it
-  (let [as-file (try (io/file filename) (catch Exception _ nil))]
-    (if (and as-file (.isAbsolute as-file) (.exists as-file))
-      (.getAbsolutePath as-file)
-      ;; Otherwise search for it
-      (let [search-paths ["src" "test" "dev" "."]
-            file-variants
-            [filename
-             ;; Try converting .class files to .clj
-             (clojure.string/replace filename #"\.class$" ".clj")
-             (clojure.string/replace filename #"\.class$" ".cljc")]]
-        (first (for [base-path search-paths
-                     variant file-variants
-                     :let [candidate (try (io/file base-path variant)
-                                          (catch Exception _ nil))]
-                     :when (and candidate (.exists candidate))]
-                 (.getAbsolutePath candidate)))))))
+  ;; Handle nil filename (happens when *file* is nil in REPL context)
+  (when filename
+    ;; If already an absolute path and exists, return it
+    (let [as-file (try (io/file filename) (catch Exception _ nil))]
+      (if (and as-file (.isAbsolute as-file) (.exists as-file))
+        (.getAbsolutePath as-file)
+        ;; Otherwise search for it
+        (let [search-paths ["src" "test" "dev" "."]
+              file-variants
+              [filename
+               ;; Try converting .class files to .clj
+               (clojure.string/replace filename #"\.class$" ".clj")
+               (clojure.string/replace filename #"\.class$" ".cljc")]]
+          (first (for [base-path search-paths
+                       variant file-variants
+                       :let [candidate (try (io/file base-path variant)
+                                            (catch Exception _ nil))]
+                       :when (and candidate (.exists candidate))]
+                   (.getAbsolutePath candidate))))))))
 
 (defn file-from-ns
   "Convert a namespace to a source file path.
