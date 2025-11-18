@@ -31,7 +31,7 @@
    :metadata? true
    :serializers {}
    :diff-context-lines 3
-   :color? true})
+   :color? false})
 
 ;; Runtime configuration override (atom for thread-safe updates)
 (defonce ^:private runtime-config (atom {}))
