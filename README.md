@@ -10,6 +10,10 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
 - Custom serialisers to handle timestamps, UUIDs, and custom types
 - Snapshot metadata to track creation date, platform, etc.
 
+## Demo
+
+![An asciinema recording of using still in Helix via nrepl.hx](https://github.com/waddie/still/blob/main/images/still.gif?raw=true)
+
 ## Installation
 
 ### Clojure (deps.edn)
@@ -19,7 +23,7 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
  :aliases {:repl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}}}}
 ```
 
-**Note:** For best REPL experience with `snap!`, use nREPL 1.5.0 or later. This enables automatic file detection during REPL eval operations.
+**Note:** For best REPL experience with `snap!`, use nREPL 1.5.0 or later with a client supporting filenames in regular eval. This enables automatic file detection during REPL eval operations.
 
 ### Babashka (bb.edn)
 
