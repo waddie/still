@@ -32,6 +32,19 @@
        #_{:clj-kondo/ignore [:unresolved-var]}
        (seq t/*testing-vars*)))
 
+#?(:clj
+     (defn try-get-nrepl-file
+       "Attempt to get the file path from nREPL middleware.
+
+     When nREPL 1.5.1+ is used with a client that sends the :file parameter,
+     it may be available in the nREPL message map even if *file* is nil."
+       []
+       (try
+         ;; Try to resolve and dereference the nREPL *msg* var
+         (when-let [msg-var (resolve 'nrepl.middleware.session/*msg*)]
+           (when (bound? msg-var) (let [msg (deref msg-var)] (get msg :file))))
+         (catch Exception _ nil))))
+
 (defn- handle-snapshot-mismatch
   "Handle a snapshot mismatch.
 
@@ -208,15 +221,19 @@
      It uses rewrite-clj to preserve formatting and comments."
        ([value-expr]
         ;; No expected value - need to edit source
-        (let [file *file*
-              line (:line (meta &form))
-              absolute-path (location/resolve-file-path file)]
-          `(let [value# ~value-expr
+        (let [compile-time-file *file* ;; Capture *file* now
+              line (:line (meta &form))]
+          `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+                                                                            ;; at
+                                                                            ;; runtime
+                 absolute-path# (location/resolve-file-path runtime-file#)
+                 value# ~value-expr
                  serialized# (serialize/serialize-value value#)
-                 location#
-                 {:file ~file :line ~line :absolute-path ~absolute-path}]
-             (if ~absolute-path
-               (let [result# (rewrite/add-expected-value! ~absolute-path
+                 location# {:file runtime-file#
+                            :line ~line
+                            :absolute-path absolute-path#}]
+             (if absolute-path#
+               (let [result# (rewrite/add-expected-value! absolute-path#
                                                           ~line
                                                           serialized#)]
                  (case (:status result#)
@@ -242,21 +259,28 @@
                   "Cannot use snap! without expected value in REPL context.\n\n"
                   "When evaluating code in the REPL (not loading from file), "
                   "snap! cannot determine the source file location.\n\n"
-                  "Options:\n"
-                  "  1. Load the file instead of evaluating the form\n"
+                  "This may happen if:\n"
+                  "  - Your editor doesn't send the :file parameter during eval\n"
+                  "  - You're using nREPL < 1.5.1 (upgrade recommended)\n"
+                  "  - You're using an older REPL client\n\n" "Solutions:\n"
+                  "  1. Load the file instead of evaluating (C-c C-k in CIDER)\n"
                   "  2. Use (snap :key value) for REPL-based testing\n"
-                  "  3. After the first run, manually add the expected value:\n"
-                  "     (snap! (your-expr) expected-value)")
-                 {:file ~file :line ~line :context :repl}))))))
+                  "  3. Provide expected value manually: (snap! expr expected)\n"
+                  "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
+                 {:file runtime-file# :line ~line :context :repl}))))))
        ([value-expr expected]
         ;; Expected value provided - compare
-        (let [file *file*
-              line (:line (meta &form))
-              absolute-path (location/resolve-file-path file)]
-          `(snap!-impl
-            ~value-expr
-            ~expected
-            {:file ~file :line ~line :absolute-path ~absolute-path})))))
+        (let [compile-time-file *file* ; <-- Capture at compile time
+              line (:line (meta &form))]
+          `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+                                                                            ;; at
+                                                                            ;; runtime
+                 absolute-path# (location/resolve-file-path runtime-file#)]
+             (snap!-impl ~value-expr
+                         ~expected
+                         {:file runtime-file#
+                          :line ~line
+                          :absolute-path absolute-path#}))))))
 
 #?(:cljs
      (defmacro snap!
