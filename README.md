@@ -5,8 +5,8 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
 - Configure via deps.edn, bb.edn, project.clj, or runtime
 - Smart behaviour inside `deftest` vs REPL
 - Inline snapshots with automatic source editing
-- Full colour diffing
-- Auto-update mode to snapshots automatically
+- Optional colour diffing
+- Auto-update mode
 - Custom serialisers to handle timestamps, UUIDs, and custom types
 - Snapshot metadata to track creation date, platform, etc.
 
