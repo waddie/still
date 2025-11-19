@@ -77,13 +77,11 @@
           ;; Move to the first argument (the value)
           value-loc (z/right func-loc)
           ;; Create a node for the expected value
-          expected-node (n/spaces 1) ; Add space before expected value
           expected-value-node (p/parse-string (serialize/pretty-print
                                                expected-value))]
       ;; Insert expected value after the value argument
       (-> value-loc
           (z/insert-right expected-value-node)
-          (z/insert-right expected-node)
           z/up))))
 
 (defn- replace-expected-value
