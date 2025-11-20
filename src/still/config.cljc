@@ -10,8 +10,13 @@
 
   Supports configuration from:
   - deps.edn / bb.edn / project.clj (:still/config key)
+  - deps.edn aliases (:still/config in :aliases map)
   - Runtime overrides via still.config/override!
   - Environment variables (for CI/CD)
+
+  Alias-specific configuration in deps.edn is detected automatically from:
+  - clojure.basis system property (when using tools.deps)
+  - STILL_ALIASES environment variable (comma-separated)
 
   All configuration keys accept both British and American spellings
   (e.g., :colour? or :color?, :serialisers or :serializers)."
@@ -20,8 +25,9 @@
                ;; used in JVM
                :cljs
                  #_{:clj-kondo/ignore [:unused-namespace]}
-                 [cljs.reader :as edn])
-            #?(:clj [clojure.java.io :as io])))
+                 [cljs.reader as edn])
+            #?(:clj [clojure.java.io :as io])
+            #?(:clj [clojure.string])))
 
 ;; Default configuration
 (def ^:private default-config
@@ -63,10 +69,45 @@
               (when (.exists file) (edn/read-string (slurp file))))
             (catch Exception _e nil))))
 
-#?(:clj (defn- read-deps-config
-          "Read configuration from deps.edn."
-          []
-          (when-let [deps (read-edn-file "deps.edn")] (:still/config deps)))
+#?(:clj
+     (defn- get-active-aliases
+       "Detect which aliases are currently active.
+
+       Tries multiple methods in order:
+       1. STILL_ALIASES environment variable (comma-separated, e.g. 'repl,dev')
+       2. clojure.basis system property (contains basis file path)
+       3. Returns empty list if detection fails"
+       []
+       (or
+        ;; Method 1: Check environment variable
+        (when-let [env-aliases (System/getenv "STILL_ALIASES")]
+          (map keyword (clojure.string/split env-aliases #",")))
+        ;; Method 2: Try reading from basis file
+        (try (when-let [basis-path (System/getProperty "clojure.basis")]
+               (when-let [basis (read-edn-file basis-path)]
+                 ;; The basis has :basis-config {:aliases [:test :dev ...]}
+                 (get-in basis [:basis-config :aliases])))
+             (catch Exception _e nil))
+        ;; Fallback: empty list
+        []))
+   :cljs (defn- get-active-aliases "No-op in ClojureScript." [] []))
+
+#?(:clj
+     (defn- read-deps-config
+       "Read configuration from deps.edn, including active aliases.
+
+          Merges :still/config from:
+          1. Top-level :still/config
+          2. Each active alias's :still/config (in order)
+
+          Later aliases override earlier ones and top-level config."
+       []
+       (when-let [deps (read-edn-file "deps.edn")]
+         (let [top-level-config (:still/config deps)
+               active-aliases (get-active-aliases)
+               alias-configs (keep #(get-in deps [:aliases % :still/config])
+                                   active-aliases)]
+           (apply merge top-level-config alias-configs))))
    :cljs (defn- read-deps-config
            "No-op in ClojureScript (config must be provided at runtime)."
            []
