@@ -44,7 +44,7 @@
   []
   (and
    ;; Check if *repl* is bound
-   (try (bound? #'*repl*)
+   (try (and (bound? #'*repl*) *repl*)
         (catch #?(:clj Exception
                   :cljs js/Error)
           _
