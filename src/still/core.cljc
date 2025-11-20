@@ -43,8 +43,8 @@
   test runners."
   []
   (and
-   ;; Check if *1 (previous REPL result) is bound
-   (try (bound? #'*1)
+   ;; Check if *repl* is bound
+   (try (bound? #'*repl*)
         (catch #?(:clj Exception
                   :cljs js/Error)
           _
@@ -161,8 +161,9 @@
   - value: The value to snapshot
 
   Enable/Disable:
-  - Controlled by *assert* - set to false to disable all snapshot assertions
-  - When *assert* is false, snap always returns true (pass-through)
+  - Controlled by *assert* outside of deftest contexts
+  - Inside deftest: Always enabled (ignores *assert* setting)
+  - Outside deftest: When *assert* is false, snap returns true (pass-through)
 
   Configuration:
   - :auto-update? true: Automatically update mismatched snapshots
@@ -182,10 +183,11 @@
     ;; Disable snapshots
     (set! *assert* false)"
   [snapshot-key value]
-  (if-not *assert*
-    ;; If assertions are disabled, just return true (pass-through)
+  (if (and (not *assert*) (not (in-test-context?)))
+    ;; If assertions are disabled AND not in test context, return true
+    ;; (pass-through)
     true
-    ;; Assertions enabled - do normal processing
+    ;; Assertions enabled OR in test context - do normal processing
     (let [serialized-value (serialize/serialize-value value)]
       (if (snapshot/snapshot-exists? snapshot-key)
         ;; Compare with existing snapshot
@@ -267,8 +269,9 @@
      - Outside test/REPL: throws AssertionError on mismatch
 
      Enable/Disable:
-     - Controlled by *assert* - when false, snap! is compiled out completely
-     - No overhead when *assert* is false (code doesn't execute)
+     - Controlled by *assert* outside of deftest contexts
+     - Inside deftest: Always enabled (ignores *assert* setting)
+     - Outside deftest: When *assert* is false, snap! returns true (pass-through)
 
      Examples:
        ;; First run: source file will be edited
@@ -286,10 +289,11 @@
      It uses rewrite-clj to preserve formatting and comments."
        ([value-expr]
         ;; No expected value - need to edit source
-        (when *assert*
-          (let [compile-time-file *file* ;; Capture *file* now
-                line (:line (meta &form))]
-            `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+        (let [compile-time-file *file* ;; Capture *file* now
+              line (:line (meta &form))]
+          `(if (or *assert* (in-test-context?))
+             ;; Enabled in test context or when assertions are enabled
+             (let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
                    ;; at runtime
                    absolute-path# (location/resolve-file-path runtime-file#)
                    value# ~value-expr
@@ -332,20 +336,25 @@
                     "  2. Use (snap :key value) for REPL-based testing\n"
                     "  3. Provide expected value manually: (snap! expr expected)\n"
                     "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
-                   {:file runtime-file# :line ~line :context :repl})))))))
+                   {:file runtime-file# :line ~line :context :repl}))))
+             ;; Disabled - return true (pass-through)
+             true)))
        ([value-expr expected]
         ;; Expected value provided - compare
-        (when *assert*
-          (let [compile-time-file *file* ; <-- Capture at compile time
-                line (:line (meta &form))]
-            `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+        (let [compile-time-file *file* ; <-- Capture at compile time
+              line (:line (meta &form))]
+          `(if (or *assert* (in-test-context?))
+             ;; Enabled in test context or when assertions are enabled
+             (let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
                    ;; at runtime
                    absolute-path# (location/resolve-file-path runtime-file#)]
                (snap!-impl ~value-expr
                            ~expected
                            {:file runtime-file#
                             :line ~line
-                            :absolute-path absolute-path#})))))))
+                            :absolute-path absolute-path#}))
+             ;; Disabled - return true (pass-through)
+             true)))))
 
 #?(:cljs
      (defmacro snap!
@@ -355,20 +364,24 @@
      You must manually provide the expected value.
 
      Enable/Disable:
-     - Controlled by *assert* - when false, snap! is compiled out completely"
+     - Controlled by *assert* outside of deftest contexts
+     - Inside deftest: Always enabled (ignores *assert* setting)
+     - Outside deftest: When *assert* is false, snap! returns true (pass-through)"
        ([value-expr]
-        (when *assert*
-          `(throw
+        `(if (or *assert* (in-test-context?))
+           (throw
             (ex-info
              "snap! automatic editing not supported in ClojureScript. Please provide expected value manually."
-             {:value ~value-expr}))))
+             {:value ~value-expr}))
+           true))
        ([value-expr expected]
-        (when *assert*
-          `(let [serialized-value# (serialize/serialize-value ~value-expr)
+        `(if (or *assert* (in-test-context?))
+           (let [serialized-value# (serialize/serialize-value ~value-expr)
                  serialized-expected# (serialize/serialize-value ~expected)]
              (compare-inline-snapshots serialized-expected#
                                        serialized-value#
-                                       nil))))))
+                                       nil))
+           true))))
 
 (comment
   ;; Example usage in REPL
