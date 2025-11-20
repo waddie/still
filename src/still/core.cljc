@@ -32,6 +32,26 @@
        #_{:clj-kondo/ignore [:unresolved-var]}
        (seq t/*testing-vars*)))
 
+(defn in-repl?
+  "Check if we're currently in an interactive REPL session.
+
+  Returns true if running in any REPL (nREPL, socket REPL, clojure.main),
+  but false when inside a test context.
+
+  REPL detection works by checking if *1 is bound, which is true for all
+  standard Clojure REPLs but false when running as a compiled JAR or in
+  test runners."
+  []
+  (and
+   ;; Check if *1 (previous REPL result) is bound
+   (try (bound? #'*1)
+        (catch #?(:clj Exception
+                  :cljs js/Error)
+          _
+          false))
+   ;; But exclude test contexts
+   (not (in-test-context?))))
+
 #?(:clj
      (defn try-get-nrepl-file
        "Attempt to get the file path from nREPL middleware.
@@ -51,10 +71,12 @@
   Behaviour depends on configuration and context:
   - If auto-update is enabled, update the snapshot and return true
   - If in test context, use clojure.test/is to fail the test
-  - If in REPL context, print a message and return false"
+  - If in REPL context, print a message and return false
+  - Otherwise (not test, not REPL), throw AssertionError"
   [snapshot-key expected actual]
   (let [auto-update? (config/auto-update?)
-        in-test? (in-test-context?)]
+        in-test? (in-test-context?)
+        in-repl? (in-repl?)]
     (cond
       ;; Auto-update mode: update snapshot and pass
       auto-update? (do (snapshot/update-snapshot! snapshot-key actual)
@@ -68,33 +90,51 @@
                                             actual
                                             {:color? (config/color?)}))
       ;; REPL context: print message and return false
-      :else (do (println "✗ Snapshot mismatch:" snapshot-key)
-                (println (diff/mismatch-message snapshot-key
-                                                expected
-                                                actual
-                                                {:color? (config/color?)}))
-                false))))
+      in-repl? (do (println "✗ Snapshot mismatch:" snapshot-key)
+                   (println (diff/mismatch-message snapshot-key
+                                                   expected
+                                                   actual
+                                                   {:color? (config/color?)}))
+                   false)
+      ;; Not test, not REPL: throw AssertionError
+      :else (throw (let [msg (diff/mismatch-message snapshot-key
+                                                    expected
+                                                    actual
+                                                    {:color? (config/color?)})]
+                     #?(:clj (AssertionError. msg)
+                        :cljs (js/Error. msg)))))))
 
 (defn- handle-snapshot-match
   "Handle a snapshot match.
 
-  In REPL context, prints a success message.
-  In test context, uses clojure.test/is to record the pass."
+  Behaviour depends on context:
+  - In test context: uses clojure.test/is to record the pass
+  - In REPL context: prints a success message and returns true
+  - Otherwise: returns true silently (assertion passed)"
   [snapshot-key expected actual]
-  (let [in-test? (in-test-context?)]
-    (if in-test?
-      (t/is (= expected actual) (str "Snapshot matches: " snapshot-key))
-      (do (println "✓ Snapshot matches:" snapshot-key) true))))
+  (let [in-test? (in-test-context?)
+        in-repl? (in-repl?)]
+    (cond in-test? (t/is (= expected actual)
+                         (str "Snapshot matches: " snapshot-key))
+          in-repl? (do (println "✓ Snapshot matches:" snapshot-key) true)
+          :else true)))
 
 (defn- handle-new-snapshot
   "Handle creation of a new snapshot.
 
-  Creates the snapshot file and provides appropriate feedback."
+  Creates the snapshot file and provides appropriate feedback.
+
+  Behaviour depends on context:
+  - In test context: uses clojure.test/is to record the pass
+  - In REPL context: prints a success message and returns true
+  - Otherwise: returns true silently"
   [snapshot-key value]
   (snapshot/write-snapshot! snapshot-key value)
-  (let [in-test? (in-test-context?)]
-    (when-not in-test? (println "✓ Snapshot created:" snapshot-key))
-    (if in-test? (t/is true (str "Snapshot created: " snapshot-key)) true)))
+  (let [in-test? (in-test-context?)
+        in-repl? (in-repl?)]
+    (cond in-test? (t/is true (str "Snapshot created: " snapshot-key))
+          in-repl? (do (println "✓ Snapshot created:" snapshot-key) true)
+          :else true)))
 
 (defn snap
   "Filesystem-based snapshot testing.
@@ -111,9 +151,18 @@
   - Prints friendly messages to stdout
   - No test framework overhead
 
+  Outside deftest and REPL (assertion context):
+  - Throws AssertionError on mismatch
+  - Returns true on match
+  - No output unless there's an error
+
   Arguments:
   - snapshot-key: Keyword identifying this snapshot (e.g., :user-creation)
   - value: The value to snapshot
+
+  Enable/Disable:
+  - Controlled by *assert* - set to false to disable all snapshot assertions
+  - When *assert* is false, snap always returns true (pass-through)
 
   Configuration:
   - :auto-update? true: Automatically update mismatched snapshots
@@ -128,12 +177,15 @@
     ;; In the REPL
     (snap :api-response (fetch-data))
     ;; => ✓ Snapshot matches: :api-response
-    ;; => true"
+    ;; => true
+
+    ;; Disable snapshots
+    (set! *assert* false)"
   [snapshot-key value]
-  (if-not (config/enabled?)
-    ;; If snapshots are disabled, just return true (pass-through)
-    (if (in-test-context?) (t/is true "Snapshots disabled") true)
-    ;; Snapshots enabled - do normal processing
+  (if-not *assert*
+    ;; If assertions are disabled, just return true (pass-through)
+    true
+    ;; Assertions enabled - do normal processing
     (let [serialized-value (serialize/serialize-value value)]
       (if (snapshot/snapshot-exists? snapshot-key)
         ;; Compare with existing snapshot
@@ -151,17 +203,18 @@
 (defn- compare-inline-snapshots
   "Common comparison logic for inline snapshots.
 
-  Returns true if snapshots match, false otherwise.
-  Handles both test and REPL contexts appropriately."
+  Returns true if snapshots match, throws/fails otherwise.
+  Handles test, REPL, and assertion contexts appropriately."
   [serialized-expected serialized-value location-info]
   (let [in-test? (in-test-context?)
+        in-repl? (in-repl?)
         matches? (diff/equal? serialized-expected serialized-value)]
     (if matches?
       ;; Snapshots match
-      (if in-test?
-        (t/is (= serialized-expected serialized-value)
-              "Inline snapshot matches")
-        (do (println "✓ Inline snapshot matches") true))
+      (cond in-test? (t/is (= serialized-expected serialized-value)
+                           "Inline snapshot matches")
+            in-repl? (do (println "✓ Inline snapshot matches") true)
+            :else true)
       ;; Snapshots don't match
       (let [mismatch-msg
             (if location-info
@@ -171,15 +224,19 @@
                    ":\n" (diff/diff-str serialized-expected serialized-value))
               (str "Inline snapshot mismatch:\n"
                    (diff/diff-str serialized-expected serialized-value)))]
-        (if in-test?
-          (t/is (= serialized-expected serialized-value) mismatch-msg)
-          (do (println (if location-info
-                         #?(:clj (str "✗ Inline snapshot mismatch at "
-                                      (location/location-string location-info))
-                            :cljs "✗ Inline snapshot mismatch")
-                         "✗ Inline snapshot mismatch"))
-              (println (diff/diff-str serialized-expected serialized-value))
-              false))))))
+        (cond in-test? (t/is (= serialized-expected serialized-value)
+                             mismatch-msg)
+              in-repl?
+              (do (println (if location-info
+                             #?(:clj (str "✗ Inline snapshot mismatch at "
+                                          (location/location-string
+                                           location-info))
+                                :cljs "✗ Inline snapshot mismatch")
+                             "✗ Inline snapshot mismatch"))
+                  (println (diff/diff-str serialized-expected serialized-value))
+                  false)
+              :else (throw #?(:clj (AssertionError. mismatch-msg)
+                              :cljs (js/Error. mismatch-msg))))))))
 
 #?(:clj (defn snap!-impl
           "Implementation of snap! comparison logic for JVM."
@@ -207,6 +264,11 @@
      - If expected is not provided: edits source file to add value as expected
      - In test context: uses clojure.test/is
      - In REPL context: returns boolean and prints messages
+     - Outside test/REPL: throws AssertionError on mismatch
+
+     Enable/Disable:
+     - Controlled by *assert* - when false, snap! is compiled out completely
+     - No overhead when *assert* is false (code doesn't execute)
 
      Examples:
        ;; First run: source file will be edited
@@ -217,88 +279,96 @@
        ;; Future runs: compares against inline value
        (snap! (compute-result) {:result 42})
 
+       ;; Disable at compile time
+       (set! *assert* false)
+
      Note: This feature requires write access to source files and only works on JVM.
      It uses rewrite-clj to preserve formatting and comments."
        ([value-expr]
         ;; No expected value - need to edit source
-        (let [compile-time-file *file* ;; Capture *file* now
-              line (:line (meta &form))]
-          `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
-                                                                            ;; at
-                                                                            ;; runtime
-                 absolute-path# (location/resolve-file-path runtime-file#)
-                 value# ~value-expr
-                 serialized# (serialize/serialize-value value#)
-                 location# {:file runtime-file#
-                            :line ~line
-                            :absolute-path absolute-path#}]
-             (if absolute-path#
-               (let [result# (rewrite/add-expected-value! absolute-path#
-                                                          ~line
-                                                          serialized#)]
-                 (case (:status result#)
-                   :inserted (do (when-not (in-test-context?)
-                                   (println "✓ Inline snapshot created at"
-                                            (location/location-string
-                                             location#)))
-                                 (if (in-test-context?)
-                                   (t/is true (:message result#))
-                                   true))
-                   :updated (do (when-not (in-test-context?)
-                                  (println "✓ Inline snapshot updated at"
-                                           (location/location-string
-                                            location#)))
-                                (if (in-test-context?)
-                                  (t/is true (:message result#))
-                                  true))
-                   (:not-found :error)
-                   (throw (ex-info "Failed to update source file" result#))))
-               (throw
-                (ex-info
-                 (str
-                  "Cannot use snap! without expected value in REPL context.\n\n"
-                  "When evaluating code in the REPL (not loading from file), "
-                  "snap! cannot determine the source file location.\n\n"
-                  "This may happen if:\n"
-                  "  - Your editor doesn't send the :file parameter during eval\n"
-                  "  - You're using nREPL < 1.5.1 (upgrade recommended)\n"
-                  "  - You're using an older REPL client\n\n" "Solutions:\n"
-                  "  1. Load the file instead of evaluating (C-c C-k in CIDER)\n"
-                  "  2. Use (snap :key value) for REPL-based testing\n"
-                  "  3. Provide expected value manually: (snap! expr expected)\n"
-                  "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
-                 {:file runtime-file# :line ~line :context :repl}))))))
+        (when *assert*
+          (let [compile-time-file *file* ;; Capture *file* now
+                line (:line (meta &form))]
+            `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+                   ;; at runtime
+                   absolute-path# (location/resolve-file-path runtime-file#)
+                   value# ~value-expr
+                   serialized# (serialize/serialize-value value#)
+                   location# {:file runtime-file#
+                              :line ~line
+                              :absolute-path absolute-path#}]
+               (if absolute-path#
+                 (let [result# (rewrite/add-expected-value! absolute-path#
+                                                            ~line
+                                                            serialized#)]
+                   (case (:status result#)
+                     :inserted (do (when-not (in-test-context?)
+                                     (println "✓ Inline snapshot created at"
+                                              (location/location-string
+                                               location#)))
+                                   (if (in-test-context?)
+                                     (t/is true (:message result#))
+                                     true))
+                     :updated (do (when-not (in-test-context?)
+                                    (println "✓ Inline snapshot updated at"
+                                             (location/location-string
+                                              location#)))
+                                  (if (in-test-context?)
+                                    (t/is true (:message result#))
+                                    true))
+                     (:not-found :error)
+                     (throw (ex-info "Failed to update source file" result#))))
+                 (throw
+                  (ex-info
+                   (str
+                    "Cannot use snap! without expected value in REPL context.\n\n"
+                    "When evaluating code in the REPL (not loading from file), "
+                    "snap! cannot determine the source file location.\n\n"
+                    "This may happen if:\n"
+                    "  - Your editor doesn't send the :file parameter during eval\n"
+                    "  - You're using nREPL < 1.5.1 (upgrade recommended)\n"
+                    "  - You're using an older REPL client\n\n" "Solutions:\n"
+                    "  1. Load the file instead of evaluating (C-c C-k in CIDER)\n"
+                    "  2. Use (snap :key value) for REPL-based testing\n"
+                    "  3. Provide expected value manually: (snap! expr expected)\n"
+                    "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
+                   {:file runtime-file# :line ~line :context :repl})))))))
        ([value-expr expected]
         ;; Expected value provided - compare
-        (let [compile-time-file *file* ; <-- Capture at compile time
-              line (:line (meta &form))]
-          `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
-                                                                            ;; at
-                                                                            ;; runtime
-                 absolute-path# (location/resolve-file-path runtime-file#)]
-             (snap!-impl ~value-expr
-                         ~expected
-                         {:file runtime-file#
-                          :line ~line
-                          :absolute-path absolute-path#}))))))
+        (when *assert*
+          (let [compile-time-file *file* ; <-- Capture at compile time
+                line (:line (meta &form))]
+            `(let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+                   ;; at runtime
+                   absolute-path# (location/resolve-file-path runtime-file#)]
+               (snap!-impl ~value-expr
+                           ~expected
+                           {:file runtime-file#
+                            :line ~line
+                            :absolute-path absolute-path#})))))))
 
 #?(:cljs
      (defmacro snap!
        "Inline snapshot testing (limited ClojureScript support).
 
      Note: Automatic source editing is not available in ClojureScript.
-     You must manually provide the expected value."
+     You must manually provide the expected value.
+
+     Enable/Disable:
+     - Controlled by *assert* - when false, snap! is compiled out completely"
        ([value-expr]
-        `(throw
-          (ex-info
-           "snap! automatic editing not supported in ClojureScript. Please provide expected value manually."
-           {:value ~value-expr})))
+        (when *assert*
+          `(throw
+            (ex-info
+             "snap! automatic editing not supported in ClojureScript. Please provide expected value manually."
+             {:value ~value-expr}))))
        ([value-expr expected]
-        `(let [serialized-value# (serialize/serialize-value ~value-expr)
-               serialized-expected# (serialize/serialize-value ~expected)]
-           (compare-inline-snapshots serialized-expected#
-                                     serialized-value#
-                                     nil)))))
+        (when *assert*
+          `(let [serialized-value# (serialize/serialize-value ~value-expr)
+                 serialized-expected# (serialize/serialize-value ~expected)]
+             (compare-inline-snapshots serialized-expected#
+                                       serialized-value#
+                                       nil))))))
 
 (comment
   ;; Example usage in REPL

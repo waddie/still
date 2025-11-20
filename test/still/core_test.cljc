@@ -17,6 +17,12 @@
   (testing "in-test-context? returns truthy inside deftest"
     (is (still/in-test-context?))))
 
+(deftest test-in-repl
+  (testing "in-repl? returns false inside deftest"
+    ;; Even if *1 is bound (in REPL), in-repl? returns false inside tests
+    ;; because test context takes precedence
+    (is (not (still/in-repl?)))))
+
 (deftest test-snap-basic
   (testing "snap creates and matches snapshots"
     ;; Clean up any existing snapshot
@@ -40,12 +46,12 @@
     (snapshot/delete-snapshot! :test-override)
     (config/override! {})))
 
-(deftest test-snap-disabled
-  (testing "snap passes when disabled"
-    (config/override! {:enabled? false})
-    ;; Even with wrong value, should pass when disabled
-    (is (true? (still/snap :disabled-test {:value 999})))
-    (config/override! {})))
+(deftest test-snap-with-assert-disabled
+  (testing "snap passes when *assert* is false"
+    (binding [*assert* false]
+      ;; Even with non-existent snapshot, should pass when *assert* is
+      ;; false
+      (is (true? (still/snap :disabled-test {:value 999}))))))
 
 #?(:clj (deftest test-snap!-with-expected
           (testing "snap! compares against expected value"
@@ -79,13 +85,38 @@
     (snapshot/delete-snapshot! :test-serialization)))
 
 (comment
-  ;; Manual testing in REPL
-  ;; Test snap in REPL (should print messages)
+  ;; Manual testing in REPL for three-context behavior === REPL Context
+  ;; ===
+  ;; Test snap in REPL (should print friendly messages and return boolean)
   (still/snap :repl-test {:value 123})
-  ;; Test snap! in REPL
-  #?(:clj (still/snap! (+ 1 2)))
-  ;; Check if we're in test context
+  ;; => ✓ Snapshot created: :repl-test => true
+  (still/snap :repl-test {:value 123})
+  ;; => ✓ Snapshot matches: :repl-test => true
+  (still/snap :repl-test {:value 456})
+  ;; => ✗ Snapshot mismatch: :repl-test
+  ;; => (prints diff)
+  ;; => false. Test snap! in REPL
+  #?(:clj (still/snap! (+ 1 2) 3))
+  ;; => ✓ Inline snapshot matches => true === Test Context ===. Inside
+  ;; deftest, uses clojure.test/is for integration with test runners
+  (deftest example-test (is (still/snap :test-example {:data "test"})))
+  ;; === Assertion Context (not test, not REPL) === When code is loaded
+  ;; outside of REPL/test (e.g., during namespace loading), snap/snap!
+  ;; throw AssertionError on mismatch instead of printing. This prevents
+  ;; noise during test runs while maintaining assertion semantics ===
+  ;; Disable with *assert* === Set *assert* to false to disable all
+  ;; snapshots (compiles out snap!
+  ;; macro)
+  (set! *assert* false)
+  (still/snap :any-key {:any "value"})
+  ;; => true (always passes, no checking)
+  (set! *assert* true)
+  ;; Check context detection
   (still/in-test-context?)
   ;; => false (in REPL)
-  ;; Inside a deftest, it returns true
-  (deftest check-context (is (true? (still/in-test-context?)))))
+  (still/in-repl?)
+  ;; => true (in REPL)
+  ;; Inside a deftest, context detection changes
+  (deftest check-context
+    (is (true? (still/in-test-context?)))
+    (is (false? (still/in-repl?)))))

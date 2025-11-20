@@ -1,12 +1,13 @@
-# still
+# Still
 
-Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](https://github.com/juxt/snap) and [Ian Henry’s “My Kind of REPL”](https://ianthehenry.com/posts/my-kind-of-repl/).
+Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](https://github.com/juxt/snap) and [Ian Henry’s "My Kind of REPL"](https://ianthehenry.com/posts/my-kind-of-repl/).
 
-- Configure via deps.edn, bb.edn, project.clj, or runtime
-- Smart behaviour inside `deftest` vs REPL
-- Inline snapshots with automatic source editing
+`still.core/snap` saves snapshots to the filesystem. `still.core/snap!` will update your source code in place.
+
+Snapshots behave like `clojure.test/is` when inside a `deftest`, like standard assertions when used inline, with REPL-friendly output in interactive sessions.
+
 - Optional colour diffing
-- Auto-update mode
+- Auto-update mode,
 - Custom serialisers to handle timestamps, UUIDs, and custom types
 - Snapshot metadata to track creation date, platform, etc.
 
@@ -58,19 +59,26 @@ Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](http
 
 ### `snap` - Filesystem-based snapshots
 
-Compares a value against a stored snapshot file. Contextual behaviour:
+Compares a value against a stored snapshot file. Behaviour adapts to three contexts:
 
-**Inside deftest:**
+**Inside deftest (test context):**
 
 - Uses `clojure.test/is` for assertions
 - Failures appear in test runner output
 - Integrates with CI/CD pipelines
 
-**Outside deftest (REPL):**
+**Outside deftest in REPL (interactive context):**
 
 - Returns boolean (true if match, false if mismatch)
 - Prints friendly messages to `stdout`
 - No test framework overhead
+
+**Outside deftest and REPL (assertion context):**
+
+- Throws `AssertionError` on mismatch
+- Returns true on match
+- No output unless there’s an error
+- Prevents noise during namespace loading
 
 ```clojure
 ;; In a test
@@ -81,6 +89,11 @@ Compares a value against a stored snapshot file. Contextual behaviour:
 (snap :api-response (fetch-data))
 ;; => ✓ Snapshot matches: :api-response
 ;; => true
+
+;; Disable all snapshots using *assert*
+(set! *assert* false)
+(snap :any-key {:any "value"})
+;; => true (always passes, no checking)
 ```
 
 ### `snap!` - inline snapshots (JVM/Babashka only)
@@ -97,14 +110,10 @@ Like `snap`, but stores expected values directly in source code. When called wit
 ;; Subsequent runs compare against inline value
 ```
 
-**REPL Usage:** For `snap!` to work when evaluating forms in the REPL (not loading files):
+**REPL usage:** For `snap!` to work when evaluating forms in the REPL (not loading files):
 
 - Use nREPL 1.5.0+ with a supporting client
 - OR load the file instead of evaluating individual forms
-- OR use `snap` instead for REPL-based testing
-- OR provide the expected value manually: `(snap! expr expected)`
-
-See the error message for detailed troubleshooting if `snap!` can’t detect your file location.
 
 ## Configuration
 
@@ -119,13 +128,22 @@ Configure `still` via multiple sources (later sources override earlier):
 
 ```clojure
 {:snapshot-dir "test/still"        ; Where snapshots are stored
- :enabled? true                    ; Enable/disable snapshot tests
  :auto-update? false               ; Auto-update mismatched snapshots
  :metadata? true                   ; Track snapshot metadata
  :serializers {}                   ; Custom type serialisers
  :diff-context-lines 3             ; Context lines in diffs
- :color? true}                     ; ANSI colours in output
+ :color? false}                    ; ANSI colours in output
  ; Note: :colour? and :serialisers are also accepted
+```
+
+**Enable/Disable:** Use Clojure’s `*assert*` to enable/disable snapshots:
+
+```clojure
+;; Disable snapshots (compiles out snap! macro completely)
+(set! *assert* false)
+
+;; Re-enable
+(set! *assert* true)
 ```
 
 ### In deps.edn
@@ -151,7 +169,6 @@ Configure `still` via multiple sources (later sources override earlier):
 
 ```sh
 export STILL_SNAPSHOT_DIR="test/snapshots"
-export STILL_ENABLED="true"
 export STILL_AUTO_UPDATE="false"
 ```
 
@@ -260,8 +277,8 @@ clj -M:test -m cognitect.test-runner
 # Update all snapshots
 STILL_AUTO_UPDATE=true clj -M:test -m cognitect.test-runner
 
-# Disable snapshots (e.g., in production)
-STILL_ENABLED=false clj -M:test -m cognitect.test-runner
+# Disable assertions (and snapshots) at compile time
+clj -M:compile -e "(set! *assert* false)"
 ```
 
 ### Babashka

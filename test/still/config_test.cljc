@@ -28,16 +28,14 @@
     (let [cfg (config/get-config)]
       (is (map? cfg))
       (is (= "test/still" (:snapshot-dir cfg)))
-      (is (= true (:enabled? cfg)))
       (is (= false (:auto-update? cfg)))
       (is (= true (:metadata? cfg)))
       (is (= 3 (:diff-context-lines cfg)))
-      (is (= true (:color? cfg))))))
+      (is (= false (:color? cfg))))))
 
 (deftest get-value-test
   (testing "gets specific config values"
     (is (= "test/still" (config/get-value :snapshot-dir)))
-    (is (= true (config/get-value :enabled?)))
     (is (= false (config/get-value :auto-update?))))
   (testing "returns nil for non-existent keys"
     (is (nil? (config/get-value :non-existent-key)))))
@@ -46,9 +44,7 @@
   (testing "overrides entire configuration"
     (config/override! {:snapshot-dir "custom/dir" :auto-update? true})
     (is (= "custom/dir" (config/get-value :snapshot-dir)))
-    (is (= true (config/get-value :auto-update?)))
-    ;; Other values should use defaults since override replaced everything
-    (is (= true (config/get-value :enabled?))))
+    (is (= true (config/get-value :auto-update?))))
   (testing "invalidates cache on override"
     (config/override! {:snapshot-dir "first"})
     (is (= "first" (config/get-value :snapshot-dir)))
@@ -60,8 +56,7 @@
     (config/merge-override! {:auto-update? true})
     (is (= true (config/get-value :auto-update?)))
     ;; Other values should remain at defaults
-    (is (= "test/still" (config/get-value :snapshot-dir)))
-    (is (= true (config/get-value :enabled?))))
+    (is (= "test/still" (config/get-value :snapshot-dir))))
   (testing "multiple merges accumulate"
     (config/merge-override! {:auto-update? true})
     (config/merge-override! {:snapshot-dir "custom"})
@@ -102,10 +97,6 @@
         (is (= "second" (:snapshot-dir cfg2)))))))
 
 (deftest helper-functions-test
-  (testing "enabled?"
-    (is (= true (config/enabled?)))
-    (config/merge-override! {:enabled? false})
-    (is (= false (config/enabled?))))
   (testing "snapshot-dir"
     (is (= "test/still" (config/snapshot-dir)))
     (config/merge-override! {:snapshot-dir "custom"})
@@ -127,6 +118,6 @@
     (config/merge-override! {:diff-context-lines 5})
     (is (= 5 (config/diff-context-lines))))
   (testing "color?"
-    (is (= true (config/color?)))
-    (config/merge-override! {:color? false})
-    (is (= false (config/color?)))))
+    (is (= false (config/color?)))
+    (config/merge-override! {:color? true})
+    (is (= true (config/color?)))))

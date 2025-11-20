@@ -26,7 +26,6 @@
 ;; Default configuration
 (def ^:private default-config
   {:snapshot-dir "test/still"
-   :enabled? true
    :auto-update? false
    :metadata? true
    :serializers {}
@@ -101,21 +100,16 @@
 
   Environment variables:
   - STILL_SNAPSHOT_DIR: snapshot directory path
-  - STILL_ENABLED: 'true' or 'false'
   - STILL_AUTO_UPDATE: 'true' or 'false'"
   []
   (let [env-snapshot-dir #?(:clj (System/getenv "STILL_SNAPSHOT_DIR")
                             :cljs (when (exists? js/process)
                                     (.-STILL_SNAPSHOT_DIR js/process.env)))
-        env-enabled #?(:clj (System/getenv "STILL_ENABLED")
-                       :cljs (when (exists? js/process)
-                               (.-STILL_ENABLED js/process.env)))
         env-auto-update #?(:clj (System/getenv "STILL_AUTO_UPDATE")
                            :cljs (when (exists? js/process)
                                    (.-STILL_AUTO_UPDATE js/process.env)))]
     (cond-> {}
       env-snapshot-dir (assoc :snapshot-dir env-snapshot-dir)
-      env-enabled (assoc :enabled? (= "true" env-enabled))
       env-auto-update (assoc :auto-update? (= "true" env-auto-update)))))
 
 (defn- load-config
@@ -185,13 +179,6 @@
   [config-map]
   (swap! runtime-config merge config-map)
   (invalidate-config-cache!))
-
-(defn enabled?
-  "Check if Still snapshot testing is enabled.
-
-  This allows disabling tests in production builds while keeping the code."
-  []
-  (get-value :enabled?))
 
 (defn snapshot-dir
   "Get the configured snapshot directory path."
