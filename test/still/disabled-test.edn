@@ -1,4 +1,4 @@
-#:snapshot{:value {:value 999},
-           :key :disabled-test,
-           :created-at "2025-11-20T08:52:38.926416Z",
-           :platform :clj}
+#:snapshot{:created-at "2025-11-20T08:52:38.926416Z"
+           :key :disabled-test
+           :platform :clj
+           :value {:value 999}}

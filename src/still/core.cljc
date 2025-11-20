@@ -62,7 +62,9 @@
        (try
          ;; Try to resolve and dereference the nREPL *msg* var
          (when-let [msg-var (resolve 'nrepl.middleware.session/*msg*)]
-           (when (bound? msg-var) (let [msg (deref msg-var)] (get msg :file))))
+           (when (bound? msg-var)
+             (let [msg (deref msg-var)]
+               (get msg :file))))
          (catch Exception _ nil))))
 
 (defn- handle-snapshot-mismatch
@@ -75,8 +77,8 @@
   - Otherwise (not test, not REPL), throw AssertionError"
   [snapshot-key expected actual]
   (let [auto-update? (config/auto-update?)
-        in-test? (in-test-context?)
-        in-repl? (in-repl?)]
+        in-test?     (in-test-context?)
+        in-repl?     (in-repl?)]
     (cond
       ;; Auto-update mode: update snapshot and pass
       auto-update? (do (snapshot/update-snapshot! snapshot-key actual)
@@ -243,7 +245,7 @@
 #?(:clj (defn snap!-impl
           "Implementation of snap! comparison logic for JVM."
           [value expected location]
-          (let [serialized-value (serialize/serialize-value value)
+          (let [serialized-value    (serialize/serialize-value value)
                 serialized-expected (serialize/serialize-value expected)]
             (compare-inline-snapshots serialized-expected
                                       serialized-value
@@ -293,14 +295,14 @@
               line (:line (meta &form))]
           `(if (or *assert* (in-test-context?))
              ;; Enabled in test context or when assertions are enabled
-             (let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+             (let [runtime-file#  (or ~compile-time-file (try-get-nrepl-file)) ;; Call
                    ;; at runtime
                    absolute-path# (location/resolve-file-path runtime-file#)
-                   value# ~value-expr
-                   serialized# (serialize/serialize-value value#)
-                   location# {:file runtime-file#
-                              :line ~line
-                              :absolute-path absolute-path#}]
+                   value#         ~value-expr
+                   serialized#    (serialize/serialize-value value#)
+                   location#      {:file runtime-file#
+                                   :line ~line
+                                   :absolute-path absolute-path#}]
                (if absolute-path#
                  (let [result# (rewrite/add-expected-value! absolute-path#
                                                             ~line
@@ -345,7 +347,7 @@
               line (:line (meta &form))]
           `(if (or *assert* (in-test-context?))
              ;; Enabled in test context or when assertions are enabled
-             (let [runtime-file# (or ~compile-time-file (try-get-nrepl-file)) ;; Call
+             (let [runtime-file#  (or ~compile-time-file (try-get-nrepl-file)) ;; Call
                    ;; at runtime
                    absolute-path# (location/resolve-file-path runtime-file#)]
                (snap!-impl ~value-expr
@@ -376,7 +378,7 @@
            true))
        ([value-expr expected]
         `(if (or *assert* (in-test-context?))
-           (let [serialized-value# (serialize/serialize-value ~value-expr)
+           (let [serialized-value#    (serialize/serialize-value ~value-expr)
                  serialized-expected# (serialize/serialize-value ~expected)]
              (compare-inline-snapshots serialized-expected#
                                        serialized-value#

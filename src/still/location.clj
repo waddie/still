@@ -30,7 +30,7 @@
   For snap! calls, we typically want depth 1 or 2."
   [depth]
   (let [stack-trace (.getStackTrace (Thread/currentThread))
-        frame (nth stack-trace depth nil)]
+        frame       (nth stack-trace depth nil)]
     (when frame
       {:file (.getFileName frame)
        :line (.getLineNumber frame)
@@ -55,17 +55,20 @@
       (if (and as-file (.isAbsolute as-file) (.exists as-file))
         (.getAbsolutePath as-file)
         ;; Otherwise search for it
-        (let [search-paths ["src" "test" "dev" "."]
-              file-variants
-              [filename
-               ;; Try converting .class files to .clj
-               (clojure.string/replace filename #"\.class$" ".clj")
-               (clojure.string/replace filename #"\.class$" ".cljc")]]
+        (let [search-paths  ["src" "test" "dev" "."]
+              file-variants [filename
+                             ;; Try converting .class files to .clj
+                             (clojure.string/replace filename
+                                                     #"\.class$"
+                                                     ".clj")
+                             (clojure.string/replace filename
+                                                     #"\.class$"
+                                                     ".cljc")]]
           (first (for [base-path search-paths
-                       variant file-variants
-                       :let [candidate (try (io/file base-path variant)
-                                            (catch Exception _ nil))]
-                       :when (and candidate (.exists candidate))]
+                       variant   file-variants
+                       :let      [candidate (try (io/file base-path variant)
+                                                 (catch Exception _ nil))]
+                       :when     (and candidate (.exists candidate))]
                    (.getAbsolutePath candidate))))))))
 
 (defn file-from-ns
@@ -75,9 +78,9 @@
     (file-from-ns 'still.core) => \"src/still/core.clj\" or \"src/still/core.cljc\"
     (file-from-ns 'my.test) => \"test/my/test.clj\""
   [ns-sym]
-  (let [ns-path (-> (str ns-sym)
-                    (s/replace "-" "_")
-                    (s/replace "." "/"))
+  (let [ns-path    (-> (str ns-sym)
+                       (s/replace "-" "_")
+                       (s/replace "." "/"))
         candidates [(str "src/" ns-path ".clj") (str "src/" ns-path ".cljc")
                     (str "test/" ns-path ".clj") (str "test/" ns-path ".cljc")
                     (str "dev/" ns-path ".clj") (str "dev/" ns-path ".cljc")]]
@@ -106,9 +109,9 @@
     (with-location (+ 1 2))
     ;; => [3 {:file \"my_test.clj\" :line 42 :absolute-path \"/path/to/my_test.clj\"}]"
   [expr]
-  (let [file *file*
-        line (:line (meta &form))
-        column (:column (meta &form))
+  (let [file          *file*
+        line          (:line (meta &form))
+        column        (:column (meta &form))
         absolute-path (when file (resolve-file-path file))]
     `[~expr
       {:file ~file :line ~line :column ~column :absolute-path ~absolute-path}]))

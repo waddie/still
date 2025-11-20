@@ -79,7 +79,7 @@
 (deftest update-snapshot-test
   (testing "updates existing snapshot"
     (let [original {:version 1}
-          updated {:version 2}]
+          updated  {:version 2}]
       (snapshot/write-snapshot! :test-key-3 original)
       (is (= original (snapshot/read-snapshot :test-key-3)))
       (snapshot/update-snapshot! :test-key-3 updated)
@@ -130,7 +130,7 @@
             (snapshot/write-snapshot! :test-key-1 {:a 1})
             (snapshot/write-snapshot! :test-key-2 {:b 2})
             (let [snapshots (snapshot/list-snapshots)
-                  keys (set (map :key snapshots))]
+                  keys      (set (map :key snapshots))]
               (is (contains? keys :test-key-1))
               (is (contains? keys :test-key-2))))
           (testing "returns empty list when no snapshots exist"

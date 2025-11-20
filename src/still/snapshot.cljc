@@ -30,7 +30,7 @@
     (throw (ex-info "Snapshot key must be a keyword"
                     {:key snapshot-key :type (type snapshot-key)})))
   (let [name-str (name snapshot-key)
-        ns-str (namespace snapshot-key)]
+        ns-str   (namespace snapshot-key)]
     (when (or (str/includes? name-str "..")
               (str/includes? name-str "\\")
               (and ns-str (str/includes? ns-str ".."))
@@ -50,7 +50,9 @@
 
   Converts namespaced keywords, removes special characters, etc."
   [k]
-  (let [ns (namespace k) nm (name k)] (if ns (str ns "_" nm) nm)))
+  (let [ns (namespace k)
+        nm (name k)]
+    (if ns (str ns "_" nm) nm)))
 
 (defn snapshot-path
   "Generate the file path for a snapshot key.
@@ -60,7 +62,7 @@
     (snapshot-path :api/create-user) => \"test/still/api_create_user.edn\""
   [snapshot-key]
   (validate-snapshot-key snapshot-key)
-  (let [dir (config/snapshot-dir)
+  (let [dir      (config/snapshot-dir)
         filename (str (sanitize-key snapshot-key) ".edn")]
     (str dir "/" filename)))
 
@@ -80,7 +82,8 @@
 #?(:clj (defn- file-exists?
           "Check if a file exists."
           [path]
-          (let [f (io/file path)] (.exists f)))
+          (let [f (io/file path)]
+            (.exists f)))
    :cljs (defn- file-exists?
            "Check if a snapshot exists in browser localStorage."
            [path]
@@ -155,7 +158,8 @@
   [snapshot-key]
   (let [path (snapshot-path snapshot-key)]
     (when (file-exists? path)
-      (let [snapshot-data (read-file path)] (extract-value snapshot-data)))))
+      (let [snapshot-data (read-file path)]
+        (extract-value snapshot-data)))))
 
 (defn write-snapshot!
   "Write a snapshot to storage.
@@ -163,8 +167,8 @@
   The value will be serialised and pretty-printed.
   Metadata is added if configured."
   [snapshot-key value]
-  (let [path (snapshot-path snapshot-key)
-        serialized (serialize/serialize-value value)
+  (let [path          (snapshot-path snapshot-key)
+        serialized    (serialize/serialize-value value)
         with-metadata (add-metadata serialized snapshot-key)]
     (write-file path with-metadata)
     value))
@@ -212,8 +216,8 @@
        []
        (when (and (exists? js/localStorage) (.-localStorage js/window))
          (let [prefix (config/snapshot-dir)]
-           (for [i (range (.-length js/localStorage))
-                 :let [key (.key js/localStorage i)]
+           (for [i     (range (.-length js/localStorage))
+                 :let  [key (.key js/localStorage i)]
                  :when (str/starts-with? key prefix)]
              {:path key
               :name (last (str/split key #"/"))

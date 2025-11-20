@@ -58,8 +58,8 @@
   - :deleted - List of deleted snapshot keys"
   []
   (let [snapshots (list-all-snapshots)
-        deleted (doall (for [{:keys [key]} snapshots]
-                         (do (snapshot/delete-snapshot! key) key)))]
+        deleted   (doall (for [{:keys [key]} snapshots]
+                           (do (snapshot/delete-snapshot! key) key)))]
     {:deleted-count (count deleted) :deleted deleted}))
 
 (defn prune-orphaned-snapshots!
@@ -82,7 +82,7 @@
 
      Returns a sequence of maps with :type (:snap or :snap!) and :key/:line."
        [file-path]
-       (try (let [content (slurp file-path)
+       (try (let [content      (slurp file-path)
                   ;; Simple regex-based detection (could be improved with
                   ;; proper parsing)
                   snap-pattern #"\(snap\s+:([a-zA-Z0-9_-]+)"

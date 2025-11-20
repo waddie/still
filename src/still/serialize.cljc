@@ -77,8 +77,8 @@
   "Serialise a value using custom serialisers if available."
   [value]
   (let [custom-serializers (config/serializers)
-        value-type #?(:clj (type value)
-                      :cljs (type value))]
+        value-type         #?(:clj (type value)
+                              :cljs (type value))]
     (if-let [serializer (get custom-serializers value-type)]
       (serializer value)
       (serialize value))))

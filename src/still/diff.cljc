@@ -105,18 +105,18 @@
 
   Returns a string with expected on the left, actual on the right."
   [expected actual]
-  (let [exp-str (with-out-str (pprint/pprint expected))
-        act-str (with-out-str (pprint/pprint actual))
+  (let [exp-str   (with-out-str (pprint/pprint expected))
+        act-str   (with-out-str (pprint/pprint actual))
         exp-lines (s/split-lines exp-str)
         act-lines (s/split-lines act-str)
         max-lines (max (count exp-lines) (count act-lines))
-        width 40]
+        width     40]
     (str "EXPECTED" (apply str (repeat (- width 8) " "))
          "ACTUAL\n" (apply str (repeat (* 2 width) "-"))
          "\n" (apply str
                      (for [i (range max-lines)]
-                       (let [exp-line (get exp-lines i "")
-                             act-line (get act-lines i "")
+                       (let [exp-line   (get exp-lines i "")
+                             act-line   (get act-lines i "")
                              exp-padded (str exp-line
                                              (apply str
                                                     (repeat (- width

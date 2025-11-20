@@ -45,13 +45,13 @@
 
 #?(:clj (deftest serialize-java-types-test
           (testing "serializes java.util.Date"
-            (let [date (Date. 1234567890000)
+            (let [date   (Date. 1234567890000)
                   result (serialize/serialize-value date)]
               (is (map? result))
               (is (= :still.serialize/date (:type result)))
               (is (string? (:iso8601 result)))))
           (testing "serializes UUID"
-            (let [uuid (UUID/randomUUID)
+            (let [uuid   (UUID/randomUUID)
                   result (serialize/serialize-value uuid)]
               (is (map? result))
               (is (= :still.serialize/uuid (:type result)))
@@ -59,12 +59,12 @@
               (is (= (str uuid) (:uuid result)))))
           (testing "serializes java.time.Instant"
             (let [instant (Instant/now)
-                  result (serialize/serialize-value instant)]
+                  result  (serialize/serialize-value instant)]
               (is (map? result))
               (is (= :still.serialize/instant (:type result)))
               (is (string? (:iso8601 result)))))
           (testing "serializes java.time.LocalDate"
-            (let [date (LocalDate/of 2025 1 18)
+            (let [date   (LocalDate/of 2025 1 18)
                   result (serialize/serialize-value date)]
               (is (map? result))
               (is (= :still.serialize/local-date (:type result)))

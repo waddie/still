@@ -104,9 +104,9 @@
        []
        (when-let [deps (read-edn-file "deps.edn")]
          (let [top-level-config (:still/config deps)
-               active-aliases (get-active-aliases)
-               alias-configs (keep #(get-in deps [:aliases % :still/config])
-                                   active-aliases)]
+               active-aliases   (get-active-aliases)
+               alias-configs    (keep #(get-in deps [:aliases % :still/config])
+                                      active-aliases)]
            (apply merge top-level-config alias-configs))))
    :cljs (defn- read-deps-config
            "No-op in ClojureScript (config must be provided at runtime)."
@@ -116,7 +116,8 @@
 #?(:clj (defn- read-bb-config
           "Read configuration from bb.edn."
           []
-          (when-let [bb (read-edn-file "bb.edn")] (:still/config bb)))
+          (when-let [bb (read-edn-file "bb.edn")]
+            (:still/config bb)))
    :cljs (defn- read-bb-config "No-op in ClojureScript." [] nil))
 
 #?(:clj (defn- read-project-config
@@ -131,7 +132,7 @@
                        ;; keyvals)
                        ;; Look for :still/config in the keyvals
                        (let [keyvals (drop 3 project-form)
-                             kvmap (apply hash-map keyvals)]
+                             kvmap   (apply hash-map keyvals)]
                          (:still/config kvmap))))))
                (catch Exception _e nil)))
    :cljs (defn- read-project-config "No-op in ClojureScript." [] nil))
@@ -146,9 +147,9 @@
   (let [env-snapshot-dir #?(:clj (System/getenv "STILL_SNAPSHOT_DIR")
                             :cljs (when (exists? js/process)
                                     (.-STILL_SNAPSHOT_DIR js/process.env)))
-        env-auto-update #?(:clj (System/getenv "STILL_AUTO_UPDATE")
-                           :cljs (when (exists? js/process)
-                                   (.-STILL_AUTO_UPDATE js/process.env)))]
+        env-auto-update  #?(:clj (System/getenv "STILL_AUTO_UPDATE")
+                            :cljs (when (exists? js/process)
+                                    (.-STILL_AUTO_UPDATE js/process.env)))]
     (cond-> {}
       env-snapshot-dir (assoc :snapshot-dir env-snapshot-dir)
       env-auto-update (assoc :auto-update? (= "true" env-auto-update)))))
