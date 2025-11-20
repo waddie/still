@@ -130,18 +130,18 @@
   (try
     (let [zloc     (parse-file file-path)
           snap-loc (find-snap!-at-line zloc line)]
-      (cond (nil? snap-loc) {:status :not-found
+      (cond (nil? snap-loc) {:status  :not-found
                              :message (str "No snap! call found at " file-path
                                            ":" line)}
             (has-expected-value? snap-loc)
             (let [updated-loc (replace-expected-value snap-loc expected-value)]
               (write-zipper updated-loc file-path)
-              {:status :updated
+              {:status  :updated
                :message (str "Updated expected value at " file-path ":" line)})
             :else (let [updated-loc (insert-expected-value snap-loc
                                                            expected-value)]
                     (write-zipper updated-loc file-path)
-                    {:status :inserted
+                    {:status  :inserted
                      :message (str "Inserted expected value at " file-path
                                    ":" line)})))
     (catch Exception e {:status :error :message (.getMessage e) :exception e})))
@@ -159,10 +159,10 @@
   (try (let [zloc     (parse-file file-path)
              snap-loc (find-snap!-at-line zloc line)]
          (cond (nil? snap-loc)
-               {:status :not-found
+               {:status  :not-found
                 :message (str "No snap! call found at " file-path ":" line)}
                (not (has-expected-value? snap-loc))
-               {:status :no-change
+               {:status  :no-change
                 :message "snap! call has no expected value to remove"}
                :else (let [;; Navigate to the expected value argument
                            func-loc     (z/down snap-loc)
@@ -173,7 +173,7 @@
                                             z/remove
                                             z/up)]
                        (write-zipper updated-loc file-path)
-                       {:status :removed
+                       {:status  :removed
                         :message (str "Removed expected value at " file-path
                                       ":" line)})))
        (catch Exception e
@@ -202,12 +202,12 @@
                      value-loc    (z/right func-loc)
                      expected-loc (when (has-expected-value? loc)
                                     (z/right value-loc))
-                     result       {:line (:row meta)
-                                   :column (:col meta)
+                     result       {:line          (:row meta)
+                                   :column        (:col meta)
                                    :has-expected? (boolean expected-loc)
-                                   :value (z/string value-loc)
-                                   :expected (when expected-loc
-                                               (z/string expected-loc))}]
+                                   :value         (z/string value-loc)
+                                   :expected      (when expected-loc
+                                                    (z/string expected-loc))}]
                  (recur (z/next loc) (conj results result)))
                (recur (z/next loc) results)))))
        (catch Exception e

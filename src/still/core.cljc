@@ -300,8 +300,8 @@
                    absolute-path# (location/resolve-file-path runtime-file#)
                    value#         ~value-expr
                    serialized#    (serialize/serialize-value value#)
-                   location#      {:file runtime-file#
-                                   :line ~line
+                   location#      {:file          runtime-file#
+                                   :line          ~line
                                    :absolute-path absolute-path#}]
                (if absolute-path#
                  (let [result# (rewrite/add-expected-value! absolute-path#
@@ -352,8 +352,8 @@
                    absolute-path# (location/resolve-file-path runtime-file#)]
                (snap!-impl ~value-expr
                            ~expected
-                           {:file runtime-file#
-                            :line ~line
+                           {:file          runtime-file#
+                            :line          ~line
                             :absolute-path absolute-path#}))
              ;; Disabled - return true (pass-through)
              true)))))

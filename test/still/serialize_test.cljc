@@ -87,7 +87,7 @@
   (testing "collections containing unstable values are not stable"
     #?(:clj (do (is (false? (serialize/stable-value? [(Date.) 1 2])))
                 (is (false? (serialize/stable-value? {:date (Date.)
-                                                      :id 1})))))))
+                                                      :id   1})))))))
 
 (deftest pretty-print-test
   (testing "pretty prints simple values"

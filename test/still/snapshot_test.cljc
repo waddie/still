@@ -65,8 +65,8 @@
       (is (snapshot/snapshot-exists? :test-key-1))
       (is (= data (snapshot/read-snapshot :test-key-1)))))
   (testing "writes and reads complex nested data"
-    (let [data {:users [{:id 1 :name "Alice" :roles #{:admin :user}}
-                        {:id 2 :name "Bob" :roles #{:user}}]
+    (let [data {:users    [{:id 1 :name "Alice" :roles #{:admin :user}}
+                           {:id 2 :name "Bob" :roles #{:user}}]
                 :metadata {:created "2025-01-18"}}]
       (snapshot/write-snapshot! :test-key-2 data)
       (is (= data (snapshot/read-snapshot :test-key-2)))))

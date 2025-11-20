@@ -66,22 +66,22 @@
       (snapshot/delete-snapshot! :test-serialization))
     ;; Test with various data types
     (is (true? (still/snap :test-serialization
-                           {:string "hello"
-                            :number 42
-                            :vector [1 2 3]
-                            :map {:nested true}
+                           {:string  "hello"
+                            :number  42
+                            :vector  [1 2 3]
+                            :map     {:nested true}
                             :keyword :test
                             :boolean true
-                            :nil nil})))
+                            :nil     nil})))
     ;; Verify it matches on second run
     (is (true? (still/snap :test-serialization
-                           {:string "hello"
-                            :number 42
-                            :vector [1 2 3]
-                            :map {:nested true}
+                           {:string  "hello"
+                            :number  42
+                            :vector  [1 2 3]
+                            :map     {:nested true}
                             :keyword :test
                             :boolean true
-                            :nil nil})))
+                            :nil     nil})))
     (snapshot/delete-snapshot! :test-serialization)))
 
 (comment

@@ -36,10 +36,10 @@
               (and ns-str (str/includes? ns-str ".."))
               (and ns-str (str/includes? ns-str "\\")))
       (throw (ex-info "Snapshot key contains invalid path characters"
-                      {:key snapshot-key
-                       :name name-str
+                      {:key       snapshot-key
+                       :name      name-str
                        :namespace ns-str
-                       :reason "Path traversal attempt detected"})))
+                       :reason    "Path traversal attempt detected"})))
     (when (empty? name-str)
       (throw (ex-info "Snapshot key name cannot be empty"
                       {:key snapshot-key}))))
@@ -135,12 +135,12 @@
   - Platform info"
   [value snapshot-key]
   (if (config/metadata?)
-    {:snapshot/value value
-     :snapshot/key snapshot-key
+    {:snapshot/value      value
+     :snapshot/key        snapshot-key
      :snapshot/created-at #?(:clj (str (Instant/now))
                              :cljs (.toISOString (js/Date.)))
-     :snapshot/platform #?(:clj :clj
-                           :cljs :cljs)}
+     :snapshot/platform   #?(:clj :clj
+                             :cljs :cljs)}
     {:snapshot/value value}))
 
 (defn- extract-value
@@ -206,8 +206,8 @@
                 (map (fn [^File f]
                        {:path (.getPath f)
                         :name (.getName f)
-                        :key (keyword
-                              (str/replace (.getName f) #"\.edn$" ""))}))))))
+                        :key  (keyword
+                               (str/replace (.getName f) #"\.edn$" ""))}))))))
    :cljs
      (defn list-snapshots
        "List all snapshots in localStorage.
@@ -221,9 +221,9 @@
                  :when (str/starts-with? key prefix)]
              {:path key
               :name (last (str/split key #"/"))
-              :key (keyword (str/replace (last (str/split key #"/"))
-                                         #"\.edn$"
-                                         ""))})))))
+              :key  (keyword (str/replace (last (str/split key #"/"))
+                                          #"\.edn$"
+                                          ""))})))))
 
 (defn snapshot-metadata
   "Get metadata for a snapshot without loading the full value.

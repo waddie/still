@@ -30,8 +30,8 @@
   - :snapshot-dir - Directory where snapshots are stored"
   []
   (let [snapshots (list-all-snapshots)]
-    {:total-count (count snapshots)
-     :snapshots snapshots
+    {:total-count  (count snapshots)
+     :snapshots    snapshots
      :snapshot-dir (config/snapshot-dir)}))
 
 (defn print-summary
@@ -146,7 +146,7 @@
   2. Collecting which snapshots would be created/updated
   3. Presenting a summary without actually writing files"
   []
-  {:status :not-implemented
+  {:status  :not-implemented
    :message "Review mode requires integration with test runner"})
 
 (defn cli-update

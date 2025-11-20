@@ -1,21 +1,24 @@
-{:deps {lambdaisland/deep-diff2 {:mvn/version "2.12.219"}
-        rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}}
- :paths ["src" "test"]
+{:deps         {lambdaisland/deep-diff2 {:mvn/version "2.12.219"}
+                rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}}
+ :paths        ["src" "test"]
  :still/config {:auto-update? false :enabled? true :snapshot-dir "test/still"}
- :tasks {:requires ([clojure.test :as t] [babashka.classpath :as cp])
-         repl {:doc "Start Babashka REPL with Still loaded"
-               :override-builtin true
-               :task (do (require '[still.core :refer [snap snap!]]
-                                  '[still.config :as config])
-                         (println "Still loaded! Try (snap :test {:value 123})")
-                         (clojure.main/repl))}
-         test {:doc "Run tests with Babashka"
-               :task (do (cp/add-classpath "src:test")
-                         (require 'still.core-test)
-                         (let [result (t/run-tests 'still.core-test)]
-                           (when-not (zero? (+ (:fail result) (:error result)))
-                             (System/exit 1))))}
-         verify {:doc "Verify all namespaces load in Babashka"
+ :tasks        {:requires ([clojure.test :as t] [babashka.classpath :as cp])
+                repl {:doc  "Start Babashka REPL with Still loaded"
+                      :override-builtin true
+                      :task (do (require '[still.core :refer [snap snap!]]
+                                         '[still.config :as config])
+                                (println
+                                 "Still loaded! Try (snap :test {:value 123})")
+                                (clojure.main/repl))}
+                test {:doc  "Run tests with Babashka"
+                      :task (do (cp/add-classpath "src:test")
+                                (require 'still.core-test)
+                                (let [result (t/run-tests 'still.core-test)]
+                                  (when-not (zero? (+ (:fail result)
+                                                      (:error result)))
+                                    (System/exit 1))))}
+                verify
+                {:doc "Verify all namespaces load in Babashka"
                  :task
                  (do (require 'still.config)
                      (require 'still.serialize)

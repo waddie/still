@@ -32,9 +32,9 @@
   (let [stack-trace (.getStackTrace (Thread/currentThread))
         frame       (nth stack-trace depth nil)]
     (when frame
-      {:file (.getFileName frame)
-       :line (.getLineNumber frame)
-       :class (.getClassName frame)
+      {:file   (.getFileName frame)
+       :line   (.getLineNumber frame)
+       :class  (.getClassName frame)
        :method (.getMethodName frame)})))
 
 (defn resolve-file-path

@@ -146,14 +146,14 @@
 
 (comment
   ;; Example usage. Serialise a value with timestamps
-  (serialize-value {:id 123
+  (serialize-value {:id         123
                     :created-at #?(:clj (Date.)
                                    :cljs (js/Date.))
-                    :name "Test"})
+                    :name       "Test"})
   ;; Check if a value is stable
   (stable-value? {:id 123 :name "Test"})
   ;; => true
-  (stable-value? {:id 123
+  (stable-value? {:id         123
                   :created-at #?(:clj (Date.)
                                  :cljs (js/Date.))})
   ;; => false. Register custom serialiser

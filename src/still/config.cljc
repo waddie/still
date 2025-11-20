@@ -31,12 +31,12 @@
 
 ;; Default configuration
 (def ^:private default-config
-  {:snapshot-dir "test/still"
-   :auto-update? false
-   :metadata? true
-   :serializers {}
+  {:snapshot-dir       "test/still"
+   :auto-update?       false
+   :metadata?          true
+   :serializers        {}
    :diff-context-lines 3
-   :color? false})
+   :color?             false})
 
 ;; Runtime configuration override (atom for thread-safe updates)
 (defonce ^:private runtime-config (atom {}))
