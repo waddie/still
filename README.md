@@ -1,8 +1,8 @@
 # Still
 
-Snapshot testing for Clojure/ClojureScript/Babashka inspired by [juxt/snap](https://github.com/juxt/snap) and [Ian Henry’s "My Kind of REPL"](https://ianthehenry.com/posts/my-kind-of-repl/).
+Self-modifying snapshot testing for Clojure/ClojureScript/Babashka, inspired by [juxt/snap](https://github.com/juxt/snap) and Ian Henry’s ["My Kind of REPL"](https://ianthehenry.com/posts/my-kind-of-repl/) and [Judge](https://github.com/ianthehenry/judge).
 
-`still.core/snap` saves snapshots to the filesystem. `still.core/snap!` will update your source code in place.
+`still.core/snap` saves snapshots to the filesystem. `still.core/snap!` will modify your source code in place.
 
 Snapshots behave like `clojure.test/is` when inside a `deftest`, like standard assertions when used inline, with REPL-friendly output in interactive sessions.
 
