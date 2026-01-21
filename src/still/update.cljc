@@ -30,9 +30,9 @@
   - :snapshot-dir - Directory where snapshots are stored"
   []
   (let [snapshots (list-all-snapshots)]
-    {:total-count  (count snapshots)
+    {:snapshot-dir (config/snapshot-dir)
      :snapshots    snapshots
-     :snapshot-dir (config/snapshot-dir)}))
+     :total-count  (count snapshots)}))
 
 (defn print-summary
   "Print a human-readable summary of all snapshots."
@@ -60,7 +60,8 @@
   (let [snapshots (list-all-snapshots)
         deleted   (doall (for [{:keys [key]} snapshots]
                            (do (snapshot/delete-snapshot! key) key)))]
-    {:deleted-count (count deleted) :deleted deleted}))
+    {:deleted       deleted
+     :deleted-count (count deleted)}))
 
 (defn prune-orphaned-snapshots!
   "Delete snapshots that are no longer referenced in code.
@@ -72,9 +73,9 @@
 
   For now, returns a not-implemented status."
   []
-  {:status :not-implemented
-   :message
-   "Pruning orphaned snapshots requires scanning source files for references"})
+  {:message
+   "Pruning orphaned snapshots requires scanning source files for references"
+   :status :not-implemented})
 
 #?(:clj
      (defn find-snap-calls-in-file
@@ -88,7 +89,8 @@
                   snap-pattern #"\(snap\s+:([a-zA-Z0-9_-]+)"
                   snap-matches (re-seq snap-pattern content)]
               (for [[_ key-str] snap-matches]
-                {:type :snap :key (keyword key-str)}))
+                {:key  (keyword key-str)
+                 :type :snap}))
             (catch Exception e
               (println "Warning: Failed to parse" file-path ":" (.getMessage e))
               [])))
@@ -131,24 +133,6 @@
   (config/merge-override! {:auto-update? false})
   (println "✓ Auto-update disabled"))
 
-(defn review-mode
-  "Review what would change if tests were run in auto-update mode.
-
-  This is a dry-run that shows which snapshots would be updated without
-  actually modifying them.
-
-  Returns a map with:
-  - :status - :not-implemented
-  - :message - Explanation
-
-  Actual implementation would require:
-  1. Running all tests in a dry-run mode
-  2. Collecting which snapshots would be created/updated
-  3. Presenting a summary without actually writing files"
-  []
-  {:status  :not-implemented
-   :message "Review mode requires integration with test runner"})
-
 (defn cli-update
   "CLI-friendly update command.
 
@@ -161,17 +145,18 @@
   (println)
   (println "All mismatched snapshots will be automatically updated."))
 
-(defn cli-prune
-  "CLI-friendly prune command to clean up orphaned snapshots.
+(comment
+  (defn cli-prune
+    "CLI-friendly prune command to clean up orphaned snapshots.
 
   Scans for snapshot files that are no longer referenced in code and
   offers to delete them."
-  []
-  (println "Scanning for orphaned snapshots...")
-  (let [result (prune-orphaned-snapshots!)]
-    (case (:status result)
-      :not-implemented (println "⚠ " (:message result))
-      (println "✓ Pruning complete"))))
+    []
+    (println "Scanning for orphaned snapshots...")
+    (let [result (prune-orphaned-snapshots!)]
+      (case (:status result)
+        :not-implemented (println "⚠ " (:message result))
+        (println "✓ Pruning complete")))))
 
 (comment
   ;; Example usage. List all snapshots

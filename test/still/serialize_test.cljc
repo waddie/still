@@ -35,13 +35,21 @@
   (testing "serializes lists"
     (is (= '(1 2 3) (serialize/serialize-value '(1 2 3)))))
   (testing "serializes maps"
-    (is (= {:a 1 :b 2} (serialize/serialize-value {:a 1 :b 2}))))
+    (is (= {:a 1
+            :b 2}
+           (serialize/serialize-value {:a 1
+                                       :b 2}))))
   (testing "serializes sets"
     (is (= #{1 2 3} (serialize/serialize-value #{1 2 3}))))
   (testing "serializes nested structures"
-    (is (= {:users [{:id 1 :name "Alice"} {:id 2 :name "Bob"}]}
-           (serialize/serialize-value {:users [{:id 1 :name "Alice"}
-                                               {:id 2 :name "Bob"}]})))))
+    (is (= {:users [{:id   1
+                     :name "Alice"}
+                    {:id   2
+                     :name "Bob"}]}
+           (serialize/serialize-value {:users [{:id   1
+                                                :name "Alice"}
+                                               {:id   2
+                                                :name "Bob"}]})))))
 
 #?(:clj (deftest serialize-java-types-test
           (testing "serializes java.util.Date"
@@ -78,7 +86,8 @@
     (is (true? (serialize/stable-value? true))))
   (testing "collections of stable values are stable"
     (is (true? (serialize/stable-value? [1 2 3])))
-    (is (true? (serialize/stable-value? {:a 1 :b 2})))
+    (is (true? (serialize/stable-value? {:a 1
+                                         :b 2})))
     (is (true? (serialize/stable-value? #{:x :y :z}))))
   #?(:clj (testing "dates and UUIDs are not stable"
             (is (false? (serialize/stable-value? (Date.))))
@@ -94,8 +103,9 @@
     (is (string? (serialize/pretty-print {:a 1})))
     (is (string? (serialize/pretty-print [1 2 3]))))
   (testing "output contains newlines for readability"
-    (let [output (serialize/pretty-print
-                  {:key1 "value1" :key2 "value2" :key3 "value3"})]
+    (let [output (serialize/pretty-print {:key1 "value1"
+                                          :key2 "value2"
+                                          :key3 "value3"})]
       (is (string? output))
       ;; Should have newlines for multi-key maps
       (is (> (count (filter #(= % \newline) output)) 0)))))
@@ -104,16 +114,20 @@
             (defrecord StableRecord [data])
             (deftest custom-serializer-test
               (testing "can register custom serializer"
-                (serialize/register-serializer!
-                 TestRecord
-                 (fn [r] {:type ::test-record :value (:value r)}))
+                (serialize/register-serializer! TestRecord
+                                                (fn [r]
+                                                  {:type  ::test-record
+                                                   :value (:value r)}))
                 (let [record (->TestRecord 42)
                       result (serialize/serialize-value record)]
-                  (is (= {:type ::test-record :value 42} result))))
+                  (is (= {:type  ::test-record
+                          :value 42}
+                         result))))
               (testing "custom serialized values are considered stable"
-                (serialize/register-serializer!
-                 StableRecord
-                 (fn [r] {:type ::stable :data (:data r)}))
+                (serialize/register-serializer! StableRecord
+                                                (fn [r]
+                                                  {:data (:data r)
+                                                   :type ::stable}))
                 (let [record (->StableRecord "test")]
                   ;; After serialization, the result should be stable
                   (is (true? (serialize/stable-value? (serialize/serialize-value

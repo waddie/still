@@ -11,11 +11,10 @@
   Uses rewrite-clj to parse, locate, and modify snap! calls in source files
   while preserving formatting and comments."
   (:require [rewrite-clj.zip :as z]
-            [rewrite-clj.node :as n]
             [rewrite-clj.parser :as p]
             [still.serialize :as serialize]))
 
-(defn- parse-file
+(defn ^:private parse-file
   "Parse a source file into a rewrite-clj zipper."
   [file-path]
   (-> file-path
@@ -23,7 +22,7 @@
       p/parse-string-all
       z/of-node))
 
-(defn- snap!-call?
+(defn ^:private snap!-call?
   "Check if a zipper location is a snap! function call."
   [loc]
   (and (z/list? loc)
@@ -31,7 +30,7 @@
          (let [sym (z/sexpr first-child)]
            (or (= sym 'snap!) (= sym 'still.core/snap!))))))
 
-(defn- find-snap!-at-line
+(defn ^:private find-snap!-at-line
   "Find a snap! call at the specified line number.
 
   Returns the zipper location of the snap! call, or nil if not found."
@@ -49,12 +48,12 @@
           ;; Keep searching
           :else (recur (z/next loc)))))))
 
-(defn- count-children
+(defn ^:private count-children
   "Count the number of child nodes in a list form."
   [loc]
   (when (z/list? loc) (count (z/child-sexprs loc))))
 
-(defn- has-expected-value?
+(defn ^:private has-expected-value?
   "Check if a snap! call already has an expected value argument.
 
   A snap! call has an expected value if it has 2 or more arguments:
@@ -63,7 +62,7 @@
   [loc]
   (when (snap!-call? loc) (>= (count-children loc) 3))) ; snap! symbol + value + expected
 
-(defn- insert-expected-value
+(defn ^:private insert-expected-value
   "Insert an expected value as the second argument to a snap! call.
 
   Example:
@@ -84,7 +83,7 @@
           (z/insert-right expected-value-node)
           z/up))))
 
-(defn- replace-expected-value
+(defn ^:private replace-expected-value
   "Replace an existing expected value in a snap! call.
 
   Example:
@@ -107,7 +106,7 @@
           (z/replace expected-value-node)
           z/up))))
 
-(defn- write-zipper
+(defn ^:private write-zipper
   "Write a zipper back to a file, preserving formatting."
   [zloc file-path]
   (let [content (z/root-string zloc)]
@@ -130,21 +129,23 @@
   (try
     (let [zloc     (parse-file file-path)
           snap-loc (find-snap!-at-line zloc line)]
-      (cond (nil? snap-loc) {:status  :not-found
-                             :message (str "No snap! call found at " file-path
-                                           ":" line)}
+      (cond (nil? snap-loc) {:message (str "No snap! call found at " file-path
+                                           ":" line)
+                             :status  :not-found}
             (has-expected-value? snap-loc)
             (let [updated-loc (replace-expected-value snap-loc expected-value)]
               (write-zipper updated-loc file-path)
-              {:status  :updated
-               :message (str "Updated expected value at " file-path ":" line)})
-            :else (let [updated-loc (insert-expected-value snap-loc
-                                                           expected-value)]
-                    (write-zipper updated-loc file-path)
-                    {:status  :inserted
-                     :message (str "Inserted expected value at " file-path
-                                   ":" line)})))
-    (catch Exception e {:status :error :message (.getMessage e) :exception e})))
+              {:message (str "Updated expected value at " file-path ":" line)
+               :status  :updated})
+            :else
+            (let [updated-loc (insert-expected-value snap-loc expected-value)]
+              (write-zipper updated-loc file-path)
+              {:message (str "Inserted expected value at " file-path ":" line)
+               :status  :inserted})))
+    (catch Exception e
+      {:exception e
+       :message   (.getMessage e)
+       :status    :error})))
 
 (defn remove-expected-value!
   "Remove the expected value from a snap! call.
@@ -159,11 +160,11 @@
   (try (let [zloc     (parse-file file-path)
              snap-loc (find-snap!-at-line zloc line)]
          (cond (nil? snap-loc)
-               {:status  :not-found
-                :message (str "No snap! call found at " file-path ":" line)}
+               {:message (str "No snap! call found at " file-path ":" line)
+                :status  :not-found}
                (not (has-expected-value? snap-loc))
-               {:status  :no-change
-                :message "snap! call has no expected value to remove"}
+               {:message "snap! call has no expected value to remove"
+                :status  :no-change}
                :else (let [;; Navigate to the expected value argument
                            func-loc     (z/down snap-loc)
                            value-loc    (z/right func-loc)
@@ -173,11 +174,13 @@
                                             z/remove
                                             z/up)]
                        (write-zipper updated-loc file-path)
-                       {:status  :removed
-                        :message (str "Removed expected value at " file-path
-                                      ":" line)})))
+                       {:message (str "Removed expected value at " file-path
+                                      ":" line)
+                        :status  :removed})))
        (catch Exception e
-         {:status :error :message (.getMessage e) :exception e})))
+         {:exception e
+          :message   (.getMessage e)
+          :status    :error})))
 
 (defn find-all-snap!-calls
   "Find all snap! calls in a file.
@@ -202,17 +205,18 @@
                      value-loc    (z/right func-loc)
                      expected-loc (when (has-expected-value? loc)
                                     (z/right value-loc))
-                     result       {:line          (:row meta)
-                                   :column        (:col meta)
-                                   :has-expected? (boolean expected-loc)
-                                   :value         (z/string value-loc)
+                     result       {:column        (:col meta)
                                    :expected      (when expected-loc
-                                                    (z/string expected-loc))}]
+                                                    (z/string expected-loc))
+                                   :has-expected? (boolean expected-loc)
+                                   :line          (:row meta)
+                                   :value         (z/string value-loc)}]
                  (recur (z/next loc) (conj results result)))
                (recur (z/next loc) results)))))
        (catch Exception e
          (throw (ex-info (str "Failed to parse file: " file-path)
-                         {:file-path file-path :error (.getMessage e)}
+                         {:error     (.getMessage e)
+                          :file-path file-path}
                          e)))))
 
 (comment

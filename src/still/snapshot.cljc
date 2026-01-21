@@ -20,7 +20,7 @@
   #?(:clj (:import [java.io File]
                    [java.time Instant])))
 
-(defn- validate-snapshot-key
+(defn ^:private validate-snapshot-key
   "Validate that a snapshot key is safe for use as a filename.
 
   Throws ex-info if the key is invalid.
@@ -28,7 +28,8 @@
   [snapshot-key]
   (when-not (keyword? snapshot-key)
     (throw (ex-info "Snapshot key must be a keyword"
-                    {:key snapshot-key :type (type snapshot-key)})))
+                    {:key  snapshot-key
+                     :type (type snapshot-key)})))
   (let [name-str (name snapshot-key)
         ns-str   (namespace snapshot-key)]
     (when (or (str/includes? name-str "..")
@@ -45,7 +46,7 @@
                       {:key snapshot-key}))))
   snapshot-key)
 
-(defn- sanitize-key
+(defn ^:private sanitize-key
   "Sanitize a snapshot key for use as a filename.
 
   Converts namespaced keywords, removes special characters, etc."
@@ -67,7 +68,7 @@
     (str dir "/" filename)))
 
 #?(:clj
-     (defn- ensure-parent-dir
+     (defn ^:private ensure-parent-dir
        "Ensure the parent directory exists for a file path.
 
           Throws ex-info if the directory cannot be created."
@@ -79,54 +80,58 @@
                              {:path (.getPath parent)
                               :snapshot-path path})))))))
 
-#?(:clj (defn- file-exists?
+#?(:clj (defn ^:private file-exists?
           "Check if a file exists."
           [path]
           (let [f (io/file path)]
             (.exists f)))
-   :cljs (defn- file-exists?
+   :cljs (defn ^:private file-exists?
            "Check if a snapshot exists in browser localStorage."
            [path]
            (when (and (exists? js/localStorage) (.-localStorage js/window))
              (some? (.getItem js/localStorage path)))))
 
-#?(:clj (defn- read-file
+#?(:clj (defn ^:private read-file
           "Read EDN content from a file."
           [path]
           (try (edn/read-string (slurp path))
                (catch Exception e
                  (throw (ex-info (str "Failed to read snapshot file: " path)
-                                 {:path path :error (.getMessage e)}
+                                 {:error (.getMessage e)
+                                  :path  path}
                                  e)))))
-   :cljs (defn- read-file
+   :cljs (defn ^:private read-file
            "Read EDN content from localStorage."
            [path]
            (try (when-let [content (.getItem js/localStorage path)]
                   (edn/read-string content))
                 (catch js/Error e
                   (throw (ex-info (str "Failed to read snapshot: " path)
-                                  {:path path :error (.-message e)}
+                                  {:error (.-message e)
+                                   :path  path}
                                   e))))))
 
-#?(:clj (defn- write-file
+#?(:clj (defn ^:private write-file
           "Write EDN content to a file."
           [path content]
           (try (ensure-parent-dir path)
                (spit path (serialize/pretty-print content))
                (catch Exception e
                  (throw (ex-info (str "Failed to write snapshot file: " path)
-                                 {:path path :error (.getMessage e)}
+                                 {:error (.getMessage e)
+                                  :path  path}
                                  e)))))
-   :cljs (defn- write-file
+   :cljs (defn ^:private write-file
            "Write EDN content to localStorage."
            [path content]
            (try (.setItem js/localStorage path (serialize/pretty-print content))
                 (catch js/Error e
                   (throw (ex-info (str "Failed to write snapshot: " path)
-                                  {:path path :error (.-message e)}
+                                  {:error (.-message e)
+                                   :path  path}
                                   e))))))
 
-(defn- add-metadata
+(defn ^:private add-metadata
   "Add metadata to a snapshot value.
 
   Metadata includes:
@@ -135,15 +140,15 @@
   - Platform info"
   [value snapshot-key]
   (if (config/metadata?)
-    {:snapshot/value      value
-     :snapshot/key        snapshot-key
-     :snapshot/created-at #?(:clj (str (Instant/now))
+    {:snapshot/created-at #?(:clj (str (Instant/now))
                              :cljs (.toISOString (js/Date.)))
+     :snapshot/key        snapshot-key
      :snapshot/platform   #?(:clj :clj
-                             :cljs :cljs)}
+                             :cljs :cljs)
+     :snapshot/value      value}
     {:snapshot/value value}))
 
-(defn- extract-value
+(defn ^:private extract-value
   "Extract the value from a snapshot, removing metadata if present."
   [snapshot-data]
   (if (and (map? snapshot-data) (contains? snapshot-data :snapshot/value))
@@ -204,10 +209,9 @@
                 (filter #(.isFile %))
                 (filter #(str/ends-with? (.getName %) ".edn"))
                 (map (fn [^File f]
-                       {:path (.getPath f)
+                       {:key  (keyword (str/replace (.getName f) #"\.edn$" ""))
                         :name (.getName f)
-                        :key  (keyword
-                               (str/replace (.getName f) #"\.edn$" ""))}))))))
+                        :path (.getPath f)}))))))
    :cljs
      (defn list-snapshots
        "List all snapshots in localStorage.
@@ -219,11 +223,10 @@
            (for [i     (range (.-length js/localStorage))
                  :let  [key (.key js/localStorage i)]
                  :when (str/starts-with? key prefix)]
-             {:path key
+             {:key  (keyword
+                     (str/replace (last (str/split key #"/")) #"\.edn$" ""))
               :name (last (str/split key #"/"))
-              :key  (keyword (str/replace (last (str/split key #"/"))
-                                          #"\.edn$"
-                                          ""))})))))
+              :path key})))))
 
 (defn snapshot-metadata
   "Get metadata for a snapshot without loading the full value.
@@ -240,7 +243,9 @@
 
 (comment
   ;; Example usage. Write a snapshot
-  (write-snapshot! :user-test {:id 123 :name "Alice"})
+  (write-snapshot! :user-test
+                   {:id   123
+                    :name "Alice"})
   ;; Read a snapshot
   (read-snapshot :user-test)
   ;; => {:id 123 :name "Alice"}

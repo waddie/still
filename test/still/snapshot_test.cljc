@@ -16,7 +16,8 @@
 (defn cleanup-test-snapshots
   "Clean up test snapshots before and after tests."
   [f]
-  (config/override! {:snapshot-dir "test/still-test" :metadata? true})
+  (config/override! {:metadata?    true
+                     :snapshot-dir "test/still-test"})
   (config/invalidate-config-cache!)
   ;; Clean up any existing test snapshots
   (doseq [key [:test-key-1 :test-key-2 :test-key-3 :namespace/key]]
@@ -60,14 +61,19 @@
 
 (deftest write-and-read-snapshot-test
   (testing "writes and reads a simple snapshot"
-    (let [data {:id 123 :name "Alice"}]
+    (let [data {:id   123
+                :name "Alice"}]
       (snapshot/write-snapshot! :test-key-1 data)
       (is (snapshot/snapshot-exists? :test-key-1))
       (is (= data (snapshot/read-snapshot :test-key-1)))))
   (testing "writes and reads complex nested data"
-    (let [data {:users    [{:id 1 :name "Alice" :roles #{:admin :user}}
-                           {:id 2 :name "Bob" :roles #{:user}}]
-                :metadata {:created "2025-01-18"}}]
+    (let [data {:metadata {:created "2025-01-18"}
+                :users    [{:id    1
+                            :name  "Alice"
+                            :roles #{:admin :user}}
+                           {:id    2
+                            :name  "Bob"
+                            :roles #{:user}}]}]
       (snapshot/write-snapshot! :test-key-2 data)
       (is (= data (snapshot/read-snapshot :test-key-2)))))
   (testing "handles namespaced keywords"

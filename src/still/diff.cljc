@@ -44,16 +44,17 @@
    (-> (diff expected actual)
        (format-diff opts))))
 
-(defn minimal-diff-str
-  "Generate a minimal diff showing only the differences.
+(comment
+  (defn minimal-diff-str
+    "Generate a minimal diff showing only the differences.
 
   This filters out identical values and focuses on mismatches."
-  ([expected actual] (minimal-diff-str expected actual {}))
-  ([expected actual opts]
-   (let [d (diff expected actual)]
-     (if (= expected actual)
-       "Values are equal (no diff)"
-       (format-diff d opts)))))
+    ([expected actual] (minimal-diff-str expected actual {}))
+    ([expected actual opts]
+     (let [d (diff expected actual)]
+       (if (= expected actual)
+         "Values are equal (no diff)"
+         (format-diff d opts))))))
 
 (defn mismatch-message
   "Generate a user-friendly mismatch message with diff.
@@ -68,7 +69,7 @@
        "\n\n"
        "Expected and actual values differ:\n\n" (diff-str expected actual opts)
        "\n" "To update the snapshot, run tests with auto-update enabled:\n"
-       "  STILL_AUTO_UPDATE=true clj -M:test\n"
+       "  STILL_AUTO_UPDATE=true clj -X:test\n"
        "Or use (still.config/merge-override! {:auto-update? true})\n"))
 
 (defn equal?
@@ -126,14 +127,31 @@
 
 (comment
   ;; Example usage. Simple diff
-  (diff {:a 1 :b 2} {:a 1 :b 3})
+  (diff {:a 1
+         :b 2}
+        {:a 1
+         :b 3})
   ;; Format diff with colour
-  (println (diff-str {:a 1 :b 2} {:a 1 :b 3}))
+  (println (diff-str {:a 1
+                      :b 2}
+                     {:a 1
+                      :b 3}))
   ;; Print diff to console
-  (print-diff {:a 1 :b 2} {:a 1 :b 3})
+  (print-diff {:a 1
+               :b 2}
+              {:a 1
+               :b 3})
   ;; Side-by-side comparison
-  (println (side-by-side {:a 1 :b 2 :c [1 2 3]} {:a 1 :b 3 :c [1 2 4]}))
+  (println (side-by-side {:a 1
+                          :b 2
+                          :c [1 2 3]}
+                         {:a 1
+                          :b 3
+                          :c [1 2 4]}))
   ;; Diff summary
-  (diff-summary {:a 1 :b 2} {:a 1 :b 3})
+  (diff-summary {:a 1
+                 :b 2}
+                {:a 1
+                 :b 3})
   ;; => "1 difference"
 )

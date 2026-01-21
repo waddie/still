@@ -42,7 +42,8 @@
 
 (deftest override-test
   (testing "overrides entire configuration"
-    (config/override! {:snapshot-dir "custom/dir" :auto-update? true})
+    (config/override! {:auto-update? true
+                       :snapshot-dir "custom/dir"})
     (is (= "custom/dir" (config/get-value :snapshot-dir)))
     (is (= true (config/get-value :auto-update?))))
   (testing "invalidates cache on override"

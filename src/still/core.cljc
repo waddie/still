@@ -42,15 +42,15 @@
   standard Clojure REPLs but false when running as a compiled JAR or in
   test runners."
   []
-  (and
-   ;; Check if *repl* is bound
-   (try (and (bound? #'*repl*) *repl*)
-        (catch #?(:clj Exception
-                  :cljs js/Error)
-          _
-          false))
-   ;; But exclude test contexts
-   (not (in-test-context?))))
+  (and #_{:clj-kondo/ignore [:unresolved-symbol]} ;; Check if *repl* is
+                                                  ;; bound
+       (try (and (bound? #'*repl*) *repl*)
+            (catch #?(:clj Exception
+                      :cljs js/Error)
+              _
+              false))
+       ;; But exclude test contexts
+       (not (in-test-context?))))
 
 #?(:clj
      (defn try-get-nrepl-file
@@ -67,7 +67,7 @@
                (get msg :file))))
          (catch Exception _ nil))))
 
-(defn- handle-snapshot-mismatch
+(defn ^:private handle-snapshot-mismatch
   "Handle a snapshot mismatch.
 
   Behaviour depends on configuration and context:
@@ -106,7 +106,7 @@
                      #?(:clj (AssertionError. msg)
                         :cljs (js/Error. msg)))))))
 
-(defn- handle-snapshot-match
+(defn ^:private handle-snapshot-match
   "Handle a snapshot match.
 
   Behaviour depends on context:
@@ -121,7 +121,7 @@
           in-repl? (do (println "✓ Snapshot matches:" snapshot-key) true)
           :else true)))
 
-(defn- handle-new-snapshot
+(defn ^:private handle-new-snapshot
   "Handle creation of a new snapshot.
 
   Creates the snapshot file and provides appropriate feedback.
@@ -204,7 +204,7 @@
         ;; Create new snapshot
         (handle-new-snapshot snapshot-key serialized-value)))))
 
-(defn- compare-inline-snapshots
+(defn ^:private compare-inline-snapshots
   "Common comparison logic for inline snapshots.
 
   Returns true if snapshots match, throws/fails otherwise.
@@ -300,9 +300,9 @@
                    absolute-path# (location/resolve-file-path runtime-file#)
                    value#         ~value-expr
                    serialized#    (serialize/serialize-value value#)
-                   location#      {:file          runtime-file#
-                                   :line          ~line
-                                   :absolute-path absolute-path#}]
+                   location#      {:absolute-path absolute-path#
+                                   :file          runtime-file#
+                                   :line          ~line}]
                (if absolute-path#
                  (let [result# (rewrite/add-expected-value! absolute-path#
                                                             ~line
@@ -338,7 +338,9 @@
                     "  2. Use (snap :key value) for REPL-based testing\n"
                     "  3. Provide expected value manually: (snap! expr expected)\n"
                     "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
-                   {:file runtime-file# :line ~line :context :repl}))))
+                   {:context :repl
+                    :file    runtime-file#
+                    :line    ~line}))))
              ;; Disabled - return true (pass-through)
              true)))
        ([value-expr expected]
@@ -352,9 +354,9 @@
                    absolute-path# (location/resolve-file-path runtime-file#)]
                (snap!-impl ~value-expr
                            ~expected
-                           {:file          runtime-file#
-                            :line          ~line
-                            :absolute-path absolute-path#}))
+                           {:absolute-path absolute-path#
+                            :file          runtime-file#
+                            :line          ~line}))
              ;; Disabled - return true (pass-through)
              true)))))
 
@@ -388,16 +390,28 @@
 (comment
   ;; Example usage in REPL
   ;; Create a new snapshot
-  (snap :user-data {:id 123 :name "Alice" :role :admin})
+  (snap :user-data
+        {:id   123
+         :name "Alice"
+         :role :admin})
   ;; => ✓ Snapshot created: :user-data => true. Match an existing snapshot
-  (snap :user-data {:id 123 :name "Alice" :role :admin})
+  (snap :user-data
+        {:id   123
+         :name "Alice"
+         :role :admin})
   ;; => ✓ Snapshot matches: :user-data => true. Mismatch
-  (snap :user-data {:id 123 :name "Bob" :role :admin})
+  (snap :user-data
+        {:id   123
+         :name "Bob"
+         :role :admin})
   ;; => ✗ Snapshot mismatch: :user-data
   ;; => (prints diff)
   ;; => false. Auto-update mode
   (config/merge-override! {:auto-update? true})
-  (snap :user-data {:id 123 :name "Bob" :role :admin})
+  (snap :user-data
+        {:id   123
+         :name "Bob"
+         :role :admin})
   ;; => ✓ Snapshot updated: :user-data => true
   ;; Inline snapshot (with expected value)
   #?(:clj (snap! (+ 1 2) 3))

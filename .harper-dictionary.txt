@@ -1,4 +1,6 @@
+AssertionError
 Babashka
 ClojureScript
+cljs
 juxt
 serialisers

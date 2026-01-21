@@ -36,29 +36,44 @@
            Date
              (serialize [d]
                ;; Serialise as ISO-8601 string for stability
-               {:type ::date :iso8601 (str (.toInstant d))}))
+               {:iso8601 (str (.toInstant d))
+                :type    ::date}))
           ;; UUID serialisation
           (extend-protocol Serializable
            UUID
-             (serialize [u] {:type ::uuid :uuid (str u)}))
+             (serialize [u]
+               {:type ::uuid
+                :uuid (str u)}))
           ;; Java Time API
           (extend-protocol Serializable
            Instant
-             (serialize [i] {:type ::instant :iso8601 (str i)})
+             (serialize [i]
+               {:iso8601 (str i)
+                :type    ::instant})
            LocalDate
-             (serialize [d] {:type ::local-date :iso8601 (str d)})
+             (serialize [d]
+               {:iso8601 (str d)
+                :type    ::local-date})
            LocalDateTime
-             (serialize [dt] {:type ::local-datetime :iso8601 (str dt)})
+             (serialize [dt]
+               {:iso8601 (str dt)
+                :type    ::local-datetime})
            ZonedDateTime
-             (serialize [zdt] {:type ::zoned-datetime :iso8601 (str zdt)})
+             (serialize [zdt]
+               {:iso8601 (str zdt)
+                :type    ::zoned-datetime})
            OffsetDateTime
-             (serialize [odt] {:type ::offset-datetime :iso8601 (str odt)}))))
+             (serialize [odt]
+               {:iso8601 (str odt)
+                :type    ::offset-datetime}))))
 
 #?(:cljs (do
            ;; JavaScript Date serialisation
            (extend-protocol Serializable
             js/Date
-              (serialize [d] {:type ::date :iso8601 (.toISOString d)}))))
+              (serialize [d]
+                {:iso8601 (.toISOString d)
+                 :type    ::date}))))
 
 (defmacro register-serializer!
   "Register a custom serialiser for a type.
@@ -112,17 +127,18 @@
   [value]
   (with-out-str (pprint/pprint value)))
 
-(defn normalize-for-comparison
-  "Normalize values for comparison.
+(comment
+  (defn normalize-for-comparison
+    "Normalize values for comparison.
 
   Some values (like sorted-map vs hash-map) should compare equal even though
   their types differ. This function normalizes them."
-  [value]
-  (cond (map? value)
-        (into {} (map (fn [[k v]] [k (normalize-for-comparison v)]) value))
-        (set? value) (set (map normalize-for-comparison value))
-        (sequential? value) (mapv normalize-for-comparison value)
-        :else value))
+    [value]
+    (cond (map? value)
+          (into {} (map (fn [[k v]] [k (normalize-for-comparison v)]) value))
+          (set? value) (set (map normalize-for-comparison value))
+          (sequential? value) (mapv normalize-for-comparison value)
+          :else value)))
 
 (defn stable-value?
   "Check if a value is stable (deterministic) for snapshot testing.
@@ -146,19 +162,22 @@
 
 (comment
   ;; Example usage. Serialise a value with timestamps
-  (serialize-value {:id         123
-                    :created-at #?(:clj (Date.)
+  (serialize-value {:created-at #?(:clj (Date.)
                                    :cljs (js/Date.))
+                    :id         123
                     :name       "Test"})
   ;; Check if a value is stable
-  (stable-value? {:id 123 :name "Test"})
+  (stable-value? {:id   123
+                  :name "Test"})
   ;; => true
-  (stable-value? {:id         123
-                  :created-at #?(:clj (Date.)
-                                 :cljs (js/Date.))})
+  (stable-value? {:created-at #?(:clj (Date.)
+                                 :cljs (js/Date.))
+                  :id         123})
   ;; => false. Register custom serialiser
   #?(:clj (do (defrecord Person [name age])
-              (register-serializer!
-               Person
-               (fn [p] {:type ::person :name (:name p) :age (:age p)}))
+              (register-serializer! Person
+                                    (fn [p]
+                                      {:age  (:age p)
+                                       :name (:name p)
+                                       :type ::person}))
               (serialize-value (->Person "Alice" 30)))))

@@ -29,9 +29,13 @@
     (when (snapshot/snapshot-exists? :test-snap-basic)
       (snapshot/delete-snapshot! :test-snap-basic))
     ;; First call creates snapshot
-    (is (true? (still/snap :test-snap-basic {:id 123 :name "Test"})))
+    (is (true? (still/snap :test-snap-basic
+                           {:id   123
+                            :name "Test"})))
     ;; Second call matches
-    (is (true? (still/snap :test-snap-basic {:id 123 :name "Test"})))
+    (is (true? (still/snap :test-snap-basic
+                           {:id   123
+                            :name "Test"})))
     ;; Clean up
     (snapshot/delete-snapshot! :test-snap-basic)))
 
@@ -58,7 +62,10 @@
             ;; With matching values
             (is (true? (still/snap! (+ 1 2) 3)))
             ;; With map value
-            (is (true? (still/snap! {:a 1 :b 2} {:a 1 :b 2}))))))
+            (is (true? (still/snap! {:a 1
+                                     :b 2}
+                                    {:a 1
+                                     :b 2}))))))
 
 (deftest test-serialization
   (testing "values are properly serialized"
@@ -66,26 +73,26 @@
       (snapshot/delete-snapshot! :test-serialization))
     ;; Test with various data types
     (is (true? (still/snap :test-serialization
-                           {:string  "hello"
-                            :number  42
-                            :vector  [1 2 3]
-                            :map     {:nested true}
+                           {:boolean true
                             :keyword :test
-                            :boolean true
-                            :nil     nil})))
+                            :map     {:nested true}
+                            :nil     nil
+                            :number  42
+                            :string  "hello"
+                            :vector  [1 2 3]})))
     ;; Verify it matches on second run
     (is (true? (still/snap :test-serialization
-                           {:string  "hello"
-                            :number  42
-                            :vector  [1 2 3]
-                            :map     {:nested true}
+                           {:boolean true
                             :keyword :test
-                            :boolean true
-                            :nil     nil})))
+                            :map     {:nested true}
+                            :nil     nil
+                            :number  42
+                            :string  "hello"
+                            :vector  [1 2 3]})))
     (snapshot/delete-snapshot! :test-serialization)))
 
 (comment
-  ;; Manual testing in REPL for three-context behavior === REPL Context
+  ;; Manual testing in REPL for three-context behaviour === REPL Context
   ;; ===
   ;; Test snap in REPL (should print friendly messages and return boolean)
   (still/snap :repl-test {:value 123})

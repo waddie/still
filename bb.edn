@@ -1,7 +1,9 @@
 {:deps         {lambdaisland/deep-diff2 {:mvn/version "2.12.219"}
                 rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}}
  :paths        ["src" "test"]
- :still/config {:auto-update? false :enabled? true :snapshot-dir "test/still"}
+ :still/config {:auto-update? false
+                :enabled?     true
+                :snapshot-dir "test/still"}
  :tasks        {:requires ([clojure.test :as t] [babashka.classpath :as cp])
                 repl {:doc  "Start Babashka REPL with Still loaded"
                       :override-builtin true

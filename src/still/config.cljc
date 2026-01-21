@@ -31,12 +31,12 @@
 
 ;; Default configuration
 (def ^:private default-config
-  {:snapshot-dir       "test/still"
-   :auto-update?       false
+  {:auto-update?       false
+   :color?             false
+   :diff-context-lines 3
    :metadata?          true
    :serializers        {}
-   :diff-context-lines 3
-   :color?             false})
+   :snapshot-dir       "test/still"})
 
 ;; Runtime configuration override (atom for thread-safe updates)
 (defonce ^:private runtime-config (atom {}))
@@ -48,9 +48,10 @@
 (def ^:private spelling-aliases
   "Map of British English config keys to their American English equivalents.
   Both spellings are accepted, but internally normalised to American spelling."
-  {:colour? :color? :serialisers :serializers})
+  {:colour?     :color?
+   :serialisers :serializers})
 
-(defn- normalize-config-keys
+(defn ^:private normalize-config-keys
   "Normalise config keys to accept both British and American spellings.
   British spellings are mapped to American equivalents for internal use."
   [config-map]
@@ -62,7 +63,7 @@
                config-map)))
 
 #?(:clj
-     (defn- read-edn-file
+     (defn ^:private read-edn-file
        "Safely read EDN from a file, returning nil if file doesn't exist or can't be read."
        [path]
        (try (when-let [file (io/file path)]
@@ -70,7 +71,7 @@
             (catch Exception _e nil))))
 
 #?(:clj
-     (defn- get-active-aliases
+     (defn ^:private get-active-aliases
        "Detect which aliases are currently active.
 
        Tries multiple methods in order:
@@ -90,10 +91,10 @@
              (catch Exception _e nil))
         ;; Fallback: empty list
         []))
-   :cljs (defn- get-active-aliases "No-op in ClojureScript." [] []))
+   :cljs (defn ^:private get-active-aliases "No-op in ClojureScript." [] []))
 
 #?(:clj
-     (defn- read-deps-config
+     (defn ^:private read-deps-config
        "Read configuration from deps.edn, including active aliases.
 
           Merges :still/config from:
@@ -108,19 +109,19 @@
                alias-configs    (keep #(get-in deps [:aliases % :still/config])
                                       active-aliases)]
            (apply merge top-level-config alias-configs))))
-   :cljs (defn- read-deps-config
+   :cljs (defn ^:private read-deps-config
            "No-op in ClojureScript (config must be provided at runtime)."
            []
            nil))
 
-#?(:clj (defn- read-bb-config
+#?(:clj (defn ^:private read-bb-config
           "Read configuration from bb.edn."
           []
           (when-let [bb (read-edn-file "bb.edn")]
             (:still/config bb)))
-   :cljs (defn- read-bb-config "No-op in ClojureScript." [] nil))
+   :cljs (defn ^:private read-bb-config "No-op in ClojureScript." [] nil))
 
-#?(:clj (defn- read-project-config
+#?(:clj (defn ^:private read-project-config
           "Read configuration from project.clj (Leiningen)."
           []
           (try (when-let [file (io/file "project.clj")]
@@ -135,9 +136,9 @@
                              kvmap   (apply hash-map keyvals)]
                          (:still/config kvmap))))))
                (catch Exception _e nil)))
-   :cljs (defn- read-project-config "No-op in ClojureScript." [] nil))
+   :cljs (defn ^:private read-project-config "No-op in ClojureScript." [] nil))
 
-(defn- read-env-config
+(defn ^:private read-env-config
   "Read configuration from environment variables.
 
   Environment variables:
@@ -154,7 +155,7 @@
       env-snapshot-dir (assoc :snapshot-dir env-snapshot-dir)
       env-auto-update (assoc :auto-update? (= "true" env-auto-update)))))
 
-(defn- load-config
+(defn ^:private load-config
   "Load configuration from all sources, with precedence:
   1. Runtime overrides (highest)
   2. Environment variables

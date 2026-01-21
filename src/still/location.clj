@@ -32,9 +32,9 @@
   (let [stack-trace (.getStackTrace (Thread/currentThread))
         frame       (nth stack-trace depth nil)]
     (when frame
-      {:file   (.getFileName frame)
+      {:class  (.getClassName frame)
+       :file   (.getFileName frame)
        :line   (.getLineNumber frame)
-       :class  (.getClassName frame)
        :method (.getMethodName frame)})))
 
 (defn resolve-file-path
@@ -54,7 +54,7 @@
     (let [as-file (try (io/file filename) (catch Exception _ nil))]
       (if (and as-file (.isAbsolute as-file) (.exists as-file))
         (.getAbsolutePath as-file)
-        ;; Otherwise search for it
+        ;; Otherwise, search for it
         (let [search-paths  ["src" "test" "dev" "."]
               file-variants [filename
                              ;; Try converting .class files to .clj
@@ -86,16 +86,17 @@
                     (str "dev/" ns-path ".clj") (str "dev/" ns-path ".cljc")]]
     (first (filter #(.exists (io/file %)) candidates))))
 
-(defn capture-location
-  "Capture the current source location for snap! calls.
+(comment
+  (defn capture-location
+    "Capture the current source location for snap! calls.
 
   This should be called from within a macro to capture the macro expansion site.
   Returns a map suitable for passing to still.rewrite functions."
-  []
-  (let [call-site (get-call-site 2) ; Skip this fn and its caller
-        file-path (when (:file call-site)
-                    (resolve-file-path (:file call-site)))]
-    (when file-path (assoc call-site :absolute-path file-path))))
+    []
+    (let [call-site (get-call-site 2) ; Skip this fn and its caller
+          file-path (when (:file call-site)
+                      (resolve-file-path (:file call-site)))]
+      (when file-path (assoc call-site :absolute-path file-path)))))
 
 (defmacro with-location
   "Capture location information at macro expansion time.
@@ -114,7 +115,10 @@
         column        (:column (meta &form))
         absolute-path (when file (resolve-file-path file))]
     `[~expr
-      {:file ~file :line ~line :column ~column :absolute-path ~absolute-path}]))
+      {:absolute-path ~absolute-path
+       :column        ~column
+       :file          ~file
+       :line          ~line}]))
 
 (defn location-string
   "Format a location map as a human-readable string.

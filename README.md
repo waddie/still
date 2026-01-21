@@ -120,9 +120,9 @@ Like `snap`, but stores expected values directly in source code. When called wit
 Configure `still` via multiple sources (later sources override earlier):
 
 1. Default configuration
-2. `deps.edn`/`bb.edn`/`project.clj` (`:still/config` key)
-3. Environment variables
-4. Runtime overrides (highest priority)
+1. `deps.edn`/`bb.edn`/`project.clj` (`:still/config` key)
+1. Environment variables
+1. Runtime overrides (highest priority)
 
 ### Configuration Options
 
