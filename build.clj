@@ -1,0 +1,44 @@
+(ns build
+  (:require [clojure.tools.build.api :as b]))
+
+(def lib 'io.github.waddie/still)
+(def version (format "0.1.%s" (b/git-count-revs nil)))
+(def class-dir "target/classes")
+(def basis (b/create-basis {:project "deps.edn"}))
+
+(def jar-file (str "target/still-" version ".jar"))
+(def uber-file (str "target/still-" version "-uber.jar"))
+
+(defn clean [_] (b/delete {:path "target"}))
+
+(defn prep
+  [_]
+  (b/write-pom {:basis     basis
+                :class-dir class-dir
+                :lib       lib
+                :src-dirs  ["src"]
+                :version   version})
+  (b/copy-dir {:src-dirs   ["src" "resources"]
+               :target-dir class-dir}))
+
+(def opts
+  {:basis     basis
+   :class-dir class-dir})
+
+(defn jar
+  [_]
+  (b/compile-clj {:basis     basis
+                  :class-dir class-dir
+                  :src-dirs  ["src"]})
+  (b/jar (merge opts {:jar-file jar-file})))
+
+(defn uber
+  [_]
+  (b/compile-clj {:basis     basis
+                  :class-dir class-dir
+                  :src-dirs  ["src"]})
+  (b/uber (merge opts {:uber-file uber-file})))
+
+(defn jar-all [_] (clean nil) (prep nil) (jar nil))
+
+(defn uber-all [_] (clean nil) (prep nil) (uber nil))
