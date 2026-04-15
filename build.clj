@@ -13,11 +13,22 @@
 
 (defn prep
   [_]
-  (b/write-pom {:basis     basis
-                :class-dir class-dir
-                :lib       lib
-                :src-dirs  ["src"]
-                :version   version})
+  (b/write-pom
+   {:basis     basis
+    :class-dir class-dir
+    :lib       lib
+    :pom-data  [[:description "Self-modifying snapshot testing for Clojure"]
+                [:url "https://github.com/waddie/still"]
+                [:licenses
+                 [:license [:name "MIT License"]
+                  [:url "https://opensource.org/licenses/MIT"]]]]
+    :scm       {:connection "scm:git:git://github.com/waddie/still.git"
+                :developerConnection
+                "scm:git:ssh://git@github.com/waddie/still.git"
+                :tag        (str "v" version)
+                :url        "https://github.com/waddie/still"}
+    :src-dirs  ["src"]
+    :version   version})
   (b/copy-dir {:src-dirs   ["src" "resources"]
                :target-dir class-dir}))
 
@@ -38,6 +49,12 @@
                   :class-dir class-dir
                   :src-dirs  ["src"]})
   (b/uber (merge opts {:uber-file uber-file})))
+
+(defn tag-release
+  [_]
+  (let [tag (str "v" version)]
+    (b/git-process {:git-args ["tag" tag]})
+    (b/git-process {:git-args ["push" "--tags"]})))
 
 (defn jar-all [_] (clean nil) (prep nil) (jar nil))
 
