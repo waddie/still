@@ -59,3 +59,11 @@
 (defn jar-all [_] (clean nil) (prep nil) (jar nil))
 
 (defn uber-all [_] (clean nil) (prep nil) (uber nil))
+
+(defn jar-install
+  [_]
+  (b/install {:basis     basis
+              :class-dir class-dir
+              :jar-file  jar-file
+              :lib       lib
+              :version   version}))
