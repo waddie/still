@@ -1,7 +1,8 @@
 {:aliases {:bb    {:extra-deps {org.babashka/babashka {:mvn/version
                                                        "1.12.209"}}}
            :build {:deps       {io.github.clojure/tools.build {:mvn/version
-                                                               "0.10.9"}}
+                                                               "0.10.9"}
+                                slipset/deps-deploy {:mvn/version "0.2.3"}}
                    :ns-default build}
            :cljs  {:extra-deps  {org.clojure/clojurescript {:mvn/version
                                                             "1.11.60"}

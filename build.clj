@@ -1,5 +1,6 @@
 (ns build
-  (:require [clojure.tools.build.api :as b]))
+  (:require [clojure.tools.build.api :as b]
+            [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'io.github.waddie/still)
 (def version (format "0.1.%s" (b/git-count-revs nil)))
@@ -67,3 +68,10 @@
               :jar-file  jar-file
               :lib       lib
               :version   version}))
+
+(defn deploy
+  [_]
+  (dd/deploy {:artifact  jar-file
+              :installer :remote
+              :pom-file  (b/pom-path {:class-dir class-dir
+                                      :lib       lib})}))
