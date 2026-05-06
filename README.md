@@ -1,3 +1,5 @@
+[![Clojars Project](https://img.shields.io/clojars/v/dev.tomwaddington/still.svg)](https://clojars.org/dev.tomwaddington/still)
+
 # Still
 
 Self-modifying snapshot testing for Clojure/ClojureScript/Babashka, inspired by [juxt/snap](https://github.com/juxt/snap) and Ian Henry’s ["My Kind of REPL"](https://ianthehenry.com/posts/my-kind-of-repl/) and [Judge](https://github.com/ianthehenry/judge).
@@ -20,7 +22,7 @@ Snapshots behave like `clojure.test/is` when inside a `deftest`, like standard a
 ### Clojure (deps.edn)
 
 ```clojure
-{:deps {dev.tomwaddington/still {:mvn/version "0.1.29"}}
+{:deps {dev.tomwaddington/still {:mvn/version "RELEASE"}}
  :aliases {:repl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}}}}
 ```
 
@@ -29,7 +31,7 @@ Snapshots behave like `clojure.test/is` when inside a `deftest`, like standard a
 ### Babashka (bb.edn)
 
 ```clojure
-{:deps {dev.tomwaddington/still {:mvn/version "0.1.29"}
+{:deps {dev.tomwaddington/still {:mvn/version "RELEASE"}
         rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}
         lambdaisland/deep-diff2 {:mvn/version "2.12.219"}}}
 ```
