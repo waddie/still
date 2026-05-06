@@ -20,7 +20,7 @@ Snapshots behave like `clojure.test/is` when inside a `deftest`, like standard a
 ### Clojure (deps.edn)
 
 ```clojure
-{:deps {io.github.waddie/still {:git/sha "…"}}
+{:deps {dev.tomwaddington/still {:mvn/version "0.1.29"}}
  :aliases {:repl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}}}}
 ```
 
@@ -29,7 +29,7 @@ Snapshots behave like `clojure.test/is` when inside a `deftest`, like standard a
 ### Babashka (bb.edn)
 
 ```clojure
-{:deps {io.github.waddie/still {:git/sha "…"}
+{:deps {dev.tomwaddington/still {:mvn/version "0.1.29"}
         rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}
         lambdaisland/deep-diff2 {:mvn/version "2.12.219"}}}
 ```
