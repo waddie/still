@@ -52,10 +52,10 @@
   (b/uber (merge opts {:uber-file uber-file})))
 
 (defn tag-release
-  [_]
+  [{:keys [version]}]
   (let [tag (str "v" version)]
-    (b/git-process {:git-args ["tag" tag]})
-    (b/git-process {:git-args ["push" "--tags"]})))
+    (b/git-process {:git-args ["tag" "-a" tag "-m" (str "Release " version)]})
+    (b/git-process {:git-args ["push" "origin" tag]})))
 
 (defn jar-all [_] (clean nil) (prep nil) (jar nil))
 
