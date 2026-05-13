@@ -7,7 +7,7 @@
 
 (ns still.config-test
   "Tests for still.config namespace."
-  (:require #?(:clj [clojure.test :refer [deftest testing is use-fixtures]]
+  (:require #?(:clj [clojure.test :refer [deftest is testing use-fixtures]]
                :cljs [cljs.test :refer-macros
                       [deftest testing is use-fixtures]])
             [still.config :as config]))

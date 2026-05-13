@@ -3,7 +3,7 @@
             [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'dev.tomwaddington/still)
-(def version (format "0.1.%s" (b/git-count-revs nil)))
+(def version (or (System/getenv "VERSION") "0.0.0-SNAPSHOT"))
 (def class-dir "target/classes")
 (def basis (b/create-basis {:project "deps.edn"}))
 
