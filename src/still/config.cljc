@@ -25,7 +25,7 @@
                ;; used in JVM
                :cljs
                  #_{:clj-kondo/ignore [:unused-namespace]}
-                 [cljs.reader as edn])
+                 [cljs.reader :as edn])
             #?(:clj [clojure.java.io :as io])
             #?(:clj [clojure.string])))
 
