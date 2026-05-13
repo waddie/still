@@ -42,7 +42,7 @@ jobs:
         run: clojure -T:build deploy
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
-          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_TOKEN }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
           VERSION: ${{ env.VERSION }}
 
       - name: Create GitHub release
