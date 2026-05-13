@@ -36,20 +36,16 @@
   "Check if we're currently in an interactive REPL session.
 
   Returns true if running in any REPL (nREPL, socket REPL, clojure.main),
-  but false when inside a test context.
+  but false inside a test context.
 
-  REPL detection works by checking if *1 is bound, which is true for all
+  REPL detection works by checking if *repl* is bound, which is true for all
   standard Clojure REPLs but false when running as a compiled JAR or in
   test runners."
   []
-  (and #_{:clj-kondo/ignore [:unresolved-symbol]} ;; Check if *repl* is
-                                                  ;; bound
-       (try (and (bound? #'*repl*) *repl*)
-            (catch #?(:clj Exception
-                      :cljs js/Error)
-              _
-              false))
-       ;; But exclude test contexts
+  (and #?(:clj (try (when-let [repl-var (resolve '*repl*)]
+                      (and (bound? repl-var) @repl-var))
+                    (catch Exception _ false))
+          :cljs false)
        (not (in-test-context?))))
 
 #?(:clj
