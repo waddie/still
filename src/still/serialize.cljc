@@ -141,7 +141,7 @@
     (let [escaped (-> value
                       (str/replace "\\" "\\\\")
                       (str/replace "\"" "\\\""))]
-      (str "\"\n" escaped "\""))
+      (str "\"" escaped "\""))
     (pretty-print value)))
 
 (comment
