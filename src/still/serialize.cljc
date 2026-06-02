@@ -10,7 +10,8 @@
 
   Provides a protocol-based system for custom type serialisation, with built-in
   handlers for common edge cases like timestamps, UUIDs, and unstable values."
-  (:require [still.config :as config]
+  (:require [clojure.string :as str]
+            [still.config :as config]
             #?(:clj [clojure.pprint :as pprint]
                :cljs [cljs.pprint :as pprint]))
   #?(:clj (:import [java.util Date UUID]
@@ -126,6 +127,22 @@
   "Pretty-print a value as EDN string for snapshot files."
   [value]
   (with-out-str (pprint/pprint value)))
+
+(defn format-value-for-source
+  "Format a value as source text for insertion into snap! calls.
+
+  For strings containing newlines when :multiline-strings? is enabled,
+  produces a multi-line string literal with actual newlines instead of \\n escapes.
+  Falls back to pretty-print for all other values."
+  [value]
+  (if (and (string? value)
+           (str/includes? value "\n")
+           (:multiline-strings? (config/get-config)))
+    (let [escaped (-> value
+                      (str/replace "\\" "\\\\")
+                      (str/replace "\"" "\\\""))]
+      (str "\"\n" escaped "\""))
+    (pretty-print value)))
 
 (comment
   (defn normalize-for-comparison

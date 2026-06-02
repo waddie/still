@@ -35,6 +35,7 @@
    :color?             false
    :diff-context-lines 3
    :metadata?          true
+   :multiline-strings? true
    :serializers        {}
    :snapshot-dir       "test/still"})
 

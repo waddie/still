@@ -76,7 +76,7 @@
           ;; Move to the first argument (the value)
           value-loc (z/right func-loc)
           ;; Create a node for the expected value
-          expected-value-node (p/parse-string (serialize/pretty-print
+          expected-value-node (p/parse-string (serialize/format-value-for-source
                                                expected-value))]
       ;; Insert expected value after the value argument
       (-> value-loc
@@ -99,7 +99,7 @@
           ;; Move to the second argument (the expected value)
           expected-loc        (z/right value-loc)
           ;; Create a node for the new expected value
-          expected-value-node (p/parse-string (serialize/pretty-print
+          expected-value-node (p/parse-string (serialize/format-value-for-source
                                                expected-value))]
       ;; Replace the expected value
       (-> expected-loc
