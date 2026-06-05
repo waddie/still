@@ -10,7 +10,8 @@
 
   Uses rewrite-clj (which supports ClojureScript) for AST manipulation
   and still.node-io for Node.js file I/O."
-  (:require [rewrite-clj.parser :as p]
+  (:require [clojure.string :as str]
+            [rewrite-clj.parser :as p]
             [rewrite-clj.zip :as z]
             [still.node-io :as node-io]
             [still.serialize :as serialize]))
@@ -40,6 +41,18 @@
         (if (and (= current-line target-line) (snap!-call? loc))
           loc
           (recur (z/next loc)))))))
+
+;; Per-file cumulative line offset — mirrors the same mechanism in rewrite.clj.
+(defonce ^:private line-offsets (atom {}))
+
+(defn- find-snap!-adjusted
+  [zloc file-path line]
+  (let [offset (get @line-offsets file-path 0)]
+    (if (zero? offset)
+      (find-snap!-at-line zloc line)
+      (or (find-snap!-at-line zloc (+ line offset))
+          (do (swap! line-offsets assoc file-path 0)
+              (find-snap!-at-line zloc line))))))
 
 (defn- count-children [loc] (when (z/list? loc) (count (z/child-sexprs loc))))
 
@@ -79,25 +92,36 @@
 
   Arguments:
   - file-path: Absolute path to the source file
-  - line: Line number of the snap! call
+  - line: Line number of the snap! call (compile-time, pre-edit)
   - expected-value: The serialised value to insert as expected
 
   Returns a map with :status (:inserted, :updated, :not-found, :error)."
   [file-path line expected-value]
   (try
-    (let [zloc     (parse-file file-path)
-          snap-loc (find-snap!-at-line zloc line)]
+    (let [zloc         (parse-file file-path)
+          before-lines (count (str/split-lines (z/root-string zloc)))
+          snap-loc     (find-snap!-adjusted zloc file-path line)]
       (cond (nil? snap-loc) {:message (str "No snap! call found at " file-path
                                            ":" line)
                              :status  :not-found}
             (has-expected-value? snap-loc)
-            (let [updated-loc (replace-expected-value snap-loc expected-value)]
+            (let [updated-loc (replace-expected-value snap-loc expected-value)
+                  delta       (- (count (str/split-lines (z/root-string
+                                                          updated-loc)))
+                                 before-lines)]
               (write-zipper updated-loc file-path)
+              (when-not (zero? delta)
+                (swap! line-offsets update file-path (fnil + 0) delta))
               {:message (str "Updated expected value at " file-path ":" line)
                :status  :updated})
             :else
-            (let [updated-loc (insert-expected-value snap-loc expected-value)]
+            (let [updated-loc (insert-expected-value snap-loc expected-value)
+                  delta       (- (count (str/split-lines (z/root-string
+                                                          updated-loc)))
+                                 before-lines)]
               (write-zipper updated-loc file-path)
+              (when-not (zero? delta)
+                (swap! line-offsets update file-path (fnil + 0) delta))
               {:message (str "Inserted expected value at " file-path ":" line)
                :status  :inserted})))
     (catch js/Error e
