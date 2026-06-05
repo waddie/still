@@ -11,8 +11,7 @@
   Provides CLI-friendly operations for managing snapshots."
   (:require [still.config :as config]
             [still.snapshot :as snapshot]
-            #?(:clj [clojure.java.io :as io])
-            #?(:clj [clojure.string :as str])))
+            #?(:clj [babashka.fs :as fs])))
 
 (defn list-all-snapshots
   "List all snapshots in the snapshot directory.
@@ -105,16 +104,11 @@
 
      Returns a set of snapshot keys that are referenced in tests."
        []
-       (let [test-dir (io/file "test")]
-         (when (.exists test-dir)
-           (->> (file-seq test-dir)
-                (filter #(.isFile %))
-                (filter #(or (str/ends-with? (.getName %) ".clj")
-                             (str/ends-with? (.getName %) ".cljs")
-                             (str/ends-with? (.getName %) ".cljc")))
-                (mapcat #(find-snap-calls-in-file (.getPath %)))
-                (map :key)
-                (into #{})))))
+       (when (fs/exists? "test")
+         (->> (fs/glob "test" "**/*.{clj,cljs,cljc}")
+              (mapcat #(find-snap-calls-in-file (str %)))
+              (map :key)
+              (into #{}))))
    :cljs (defn scan-test-directory "Not implemented in ClojureScript." [] #{}))
 
 (defn enable-auto-update!

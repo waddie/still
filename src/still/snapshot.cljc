@@ -14,12 +14,11 @@
             [still.serialize :as serialize]
             #?(:clj [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
-            #?(:clj [clojure.java.io :as io])
+            #?(:clj [babashka.fs :as fs])
             #?(:clj [clojure.string :as str]
                :cljs [clojure.string :as str])
             #?(:cljs [still.node-io :as node-io]))
-  #?(:clj (:import [java.io File]
-                   [java.time Instant])))
+  #?(:clj (:import [java.time Instant])))
 
 (defn ^:private validate-snapshot-key
   "Validate that a snapshot key is safe for use as a filename.
@@ -74,18 +73,18 @@
 
           Throws ex-info if the directory cannot be created."
        [path]
-       (when-let [parent (.getParentFile (io/file path))]
-         (when-not (.exists parent)
-           (when-not (.mkdirs parent)
-             (throw (ex-info "Failed to create snapshot directory"
-                             {:path (.getPath parent)
-                              :snapshot-path path})))))))
+       (when-let [parent (fs/parent path)]
+         (when-not (fs/exists? parent)
+           (try (fs/create-dirs parent)
+                (catch Exception _
+                  (throw (ex-info "Failed to create snapshot directory"
+                                  {:path (str parent)
+                                   :snapshot-path path}))))))))
 
 #?(:clj (defn ^:private file-exists?
           "Check if a file exists."
           [path]
-          (let [f (io/file path)]
-            (.exists f)))
+          (fs/exists? path))
    :cljs
      (defn ^:private file-exists?
        "Check if a snapshot exists (Node.js filesystem or browser localStorage)."
@@ -205,7 +204,7 @@
   "Delete a snapshot from storage."
   [snapshot-key]
   (let [path (snapshot-path snapshot-key)]
-    #?(:clj (when (file-exists? path) (io/delete-file path))
+    #?(:clj (fs/delete-if-exists path)
        :cljs (when (file-exists? path)
                (if (node-io/node-env?)
                  (node-io/delete-file! path)
@@ -217,15 +216,16 @@
 
      Returns a sequence of {:key keyword :path string} maps."
        []
-       (let [dir (io/file (config/snapshot-dir))]
-         (when (.exists dir)
-           (->> (.listFiles dir)
-                (filter #(.isFile %))
-                (filter #(str/ends-with? (.getName %) ".edn"))
-                (map (fn [^File f]
-                       {:key  (keyword (str/replace (.getName f) #"\.edn$" ""))
-                        :name (.getName f)
-                        :path (.getPath f)}))))))
+       (let [dir (config/snapshot-dir)]
+         (when (fs/exists? dir)
+           (->> (fs/list-dir dir)
+                (filter fs/regular-file?)
+                (filter #(str/ends-with? (fs/file-name %) ".edn"))
+                (map (fn [f]
+                       {:key  (keyword
+                               (str/replace (fs/file-name f) #"\.edn$" ""))
+                        :name (fs/file-name f)
+                        :path (str f)}))))))
    :cljs
      (defn list-snapshots
        "List all snapshots in filesystem (Node.js) or localStorage (browser).

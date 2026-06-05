@@ -26,7 +26,7 @@
                :cljs
                  #_{:clj-kondo/ignore [:unused-namespace]}
                  [cljs.reader :as edn])
-            #?(:clj [clojure.java.io :as io])
+            #?(:clj [babashka.fs :as fs])
             #?(:clj [clojure.string])))
 
 ;; Default configuration
@@ -67,8 +67,7 @@
      (defn ^:private read-edn-file
        "Safely read EDN from a file, returning nil if file doesn't exist or can't be read."
        [path]
-       (try (when-let [file (io/file path)]
-              (when (.exists file) (edn/read-string (slurp file))))
+       (try (when (fs/exists? path) (edn/read-string (slurp path)))
             (catch Exception _e nil))))
 
 #?(:clj
@@ -125,17 +124,16 @@
 #?(:clj (defn ^:private read-project-config
           "Read configuration from project.clj (Leiningen)."
           []
-          (try (when-let [file (io/file "project.clj")]
-                 (when (.exists file)
-                   (let [project-form (edn/read-string (slurp file))]
-                     (when (and (list? project-form)
-                                (= 'defproject (first project-form)))
-                       ;; project.clj is (defproject name version &
-                       ;; keyvals)
-                       ;; Look for :still/config in the keyvals
-                       (let [keyvals (drop 3 project-form)
-                             kvmap   (apply hash-map keyvals)]
-                         (:still/config kvmap))))))
+          (try (when (fs/exists? "project.clj")
+                 (let [project-form (edn/read-string (slurp "project.clj"))]
+                   (when (and (list? project-form)
+                              (= 'defproject (first project-form)))
+                     ;; project.clj is (defproject name version &
+                     ;; keyvals)
+                     ;; Look for :still/config in the keyvals
+                     (let [keyvals (drop 3 project-form)
+                           kvmap   (apply hash-map keyvals)]
+                       (:still/config kvmap)))))
                (catch Exception _e nil)))
    :cljs (defn ^:private read-project-config "No-op in ClojureScript." [] nil))
 

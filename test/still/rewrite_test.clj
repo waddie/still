@@ -6,22 +6,21 @@
 ;; the terms of this license.
 
 (ns still.rewrite-test
-  (:require [clojure.java.io :as io]
+  (:require [babashka.fs :as fs]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [still.rewrite :as rw]))
 
-(def ^:private tmp-file
-  (str (System/getProperty "java.io.tmpdir") "/still_rewrite_test.cljc"))
+(def ^:private tmp-file (str (fs/temp-dir) "/still_rewrite_test.cljc"))
 
 (defn- reset-fixture
   [f]
-  (io/delete-file tmp-file true)
+  (fs/delete-if-exists tmp-file)
   ;; Reset the module-level offset atom between tests via a round-trip
   ;; through a file that has no snap! at the adjusted line, forcing
   ;; stale-offset reset.
   (f)
-  (io/delete-file tmp-file true))
+  (fs/delete-if-exists tmp-file))
 
 (use-fixtures :each reset-fixture)
 

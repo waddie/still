@@ -10,7 +10,7 @@
 
   Captures file path, line, and column information from the call site to enable
   automatic source editing."
-  (:require [clojure.java.io :as io]
+  (:require [babashka.fs :as fs]
             [clojure.string :as s]))
 
 (defn get-call-site
@@ -51,25 +51,21 @@
   ;; Handle nil filename (happens when *file* is nil in REPL context)
   (when filename
     ;; If already an absolute path and exists, return it
-    (let [as-file (try (io/file filename) (catch Exception _ nil))]
-      (if (and as-file (.isAbsolute as-file) (.exists as-file))
-        (.getAbsolutePath as-file)
-        ;; Otherwise, search for it
-        (let [search-paths  ["src" "test" "dev" "."]
-              file-variants [filename
-                             ;; Try converting .class files to .clj
-                             (clojure.string/replace filename
-                                                     #"\.class$"
-                                                     ".clj")
-                             (clojure.string/replace filename
-                                                     #"\.class$"
-                                                     ".cljc")]]
-          (first (for [base-path search-paths
-                       variant   file-variants
-                       :let      [candidate (try (io/file base-path variant)
-                                                 (catch Exception _ nil))]
-                       :when     (and candidate (.exists candidate))]
-                   (.getAbsolutePath candidate))))))))
+    (if (and (fs/absolute? filename) (fs/exists? filename))
+      (str (fs/absolutize filename))
+      ;; Otherwise, search for it
+      (let [search-paths  ["src" "test" "dev" "."]
+            file-variants [filename
+                           ;; Try converting .class files to .clj
+                           (clojure.string/replace filename #"\.class$" ".clj")
+                           (clojure.string/replace filename
+                                                   #"\.class$"
+                                                   ".cljc")]]
+        (first (for [base-path search-paths
+                     variant   file-variants
+                     :let      [candidate (fs/file base-path variant)]
+                     :when     (fs/exists? candidate)]
+                 (str (fs/absolutize candidate))))))))
 
 (defn file-from-ns
   "Convert a namespace to a source file path.
@@ -84,7 +80,7 @@
         candidates [(str "src/" ns-path ".clj") (str "src/" ns-path ".cljc")
                     (str "test/" ns-path ".clj") (str "test/" ns-path ".cljc")
                     (str "dev/" ns-path ".clj") (str "dev/" ns-path ".cljc")]]
-    (first (filter #(.exists (io/file %)) candidates))))
+    (first (filter fs/exists? candidates))))
 
 (comment
   (defn capture-location

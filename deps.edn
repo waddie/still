@@ -17,7 +17,8 @@
                                   org.clojure/test.check {:mvn/version "1.1.3"}}
                    :extra-paths  ["test"]
                    :still/config {:color? false}}}
- :deps    {lambdaisland/deep-diff2 {:mvn/version "2.14.235"}
-           org.clojure/clojure     {:mvn/version "1.12.5"}
+ :deps    {babashka/fs         {:mvn/version "0.5.33"}
+           lambdaisland/deep-diff2 {:mvn/version "2.14.235"}
+           org.clojure/clojure {:mvn/version "1.12.5"}
            rewrite-clj/rewrite-clj {:mvn/version "1.2.54"}}
  :paths   ["src" "resources"]}
