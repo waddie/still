@@ -16,7 +16,8 @@
                :cljs [cljs.reader :as edn])
             #?(:clj [clojure.java.io :as io])
             #?(:clj [clojure.string :as str]
-               :cljs [clojure.string :as str]))
+               :cljs [clojure.string :as str])
+            #?(:cljs [still.node-io :as node-io]))
   #?(:clj (:import [java.io File]
                    [java.time Instant])))
 
@@ -85,11 +86,14 @@
           [path]
           (let [f (io/file path)]
             (.exists f)))
-   :cljs (defn ^:private file-exists?
-           "Check if a snapshot exists in browser localStorage."
-           [path]
-           (when (and (exists? js/localStorage) (.-localStorage js/window))
-             (some? (.getItem js/localStorage path)))))
+   :cljs
+     (defn ^:private file-exists?
+       "Check if a snapshot exists (Node.js filesystem or browser localStorage)."
+       [path]
+       (if (node-io/node-env?)
+         (node-io/file-exists? path)
+         (when (and (exists? js/localStorage) (.-localStorage js/window))
+           (some? (.getItem js/localStorage path))))))
 
 #?(:clj (defn ^:private read-file
           "Read EDN content from a file."
@@ -100,16 +104,19 @@
                                  {:error (.getMessage e)
                                   :path  path}
                                  e)))))
-   :cljs (defn ^:private read-file
-           "Read EDN content from localStorage."
-           [path]
-           (try (when-let [content (.getItem js/localStorage path)]
-                  (edn/read-string content))
-                (catch js/Error e
-                  (throw (ex-info (str "Failed to read snapshot: " path)
-                                  {:error (.-message e)
-                                   :path  path}
-                                  e))))))
+   :cljs
+     (defn ^:private read-file
+       "Read EDN content from filesystem (Node.js) or localStorage (browser)."
+       [path]
+       (try (if (node-io/node-env?)
+              (edn/read-string (node-io/read-file path))
+              (when-let [content (.getItem js/localStorage path)]
+                (edn/read-string content)))
+            (catch js/Error e
+              (throw (ex-info (str "Failed to read snapshot: " path)
+                              {:error (.-message e)
+                               :path  path}
+                              e))))))
 
 #?(:clj (defn ^:private write-file
           "Write EDN content to a file."
@@ -121,15 +128,19 @@
                                  {:error (.getMessage e)
                                   :path  path}
                                  e)))))
-   :cljs (defn ^:private write-file
-           "Write EDN content to localStorage."
-           [path content]
-           (try (.setItem js/localStorage path (serialize/pretty-print content))
-                (catch js/Error e
-                  (throw (ex-info (str "Failed to write snapshot: " path)
-                                  {:error (.-message e)
-                                   :path  path}
-                                  e))))))
+   :cljs
+     (defn ^:private write-file
+       "Write EDN content to filesystem (Node.js) or localStorage (browser)."
+       [path content]
+       (try (if (node-io/node-env?)
+              (do (node-io/ensure-parent-dir! path)
+                  (node-io/write-file path (serialize/pretty-print content)))
+              (.setItem js/localStorage path (serialize/pretty-print content)))
+            (catch js/Error e
+              (throw (ex-info (str "Failed to write snapshot: " path)
+                              {:error (.-message e)
+                               :path  path}
+                              e))))))
 
 (defn ^:private add-metadata
   "Add metadata to a snapshot value.
@@ -195,7 +206,10 @@
   [snapshot-key]
   (let [path (snapshot-path snapshot-key)]
     #?(:clj (when (file-exists? path) (io/delete-file path))
-       :cljs (when (file-exists? path) (.removeItem js/localStorage path)))))
+       :cljs (when (file-exists? path)
+               (if (node-io/node-env?)
+                 (node-io/delete-file! path)
+                 (.removeItem js/localStorage path))))))
 
 #?(:clj
      (defn list-snapshots
@@ -214,19 +228,25 @@
                         :path (.getPath f)}))))))
    :cljs
      (defn list-snapshots
-       "List all snapshots in localStorage.
+       "List all snapshots in filesystem (Node.js) or localStorage (browser).
 
      Returns a sequence of {:key keyword :path string} maps."
        []
-       (when (and (exists? js/localStorage) (.-localStorage js/window))
-         (let [prefix (config/snapshot-dir)]
-           (for [i     (range (.-length js/localStorage))
-                 :let  [key (.key js/localStorage i)]
-                 :when (str/starts-with? key prefix)]
-             {:key  (keyword
-                     (str/replace (last (str/split key #"/")) #"\.edn$" ""))
-              :name (last (str/split key #"/"))
-              :path key})))))
+       (if (node-io/node-env?)
+         (let [dir (config/snapshot-dir)]
+           (for [fname (node-io/list-edn-files dir)]
+             {:key  (keyword (str/replace fname #"\.edn$" ""))
+              :name fname
+              :path (str dir "/" fname)}))
+         (when (and (exists? js/localStorage) (.-localStorage js/window))
+           (let [prefix (config/snapshot-dir)]
+             (for [i     (range (.-length js/localStorage))
+                   :let  [key (.key js/localStorage i)]
+                   :when (str/starts-with? key prefix)]
+               {:key  (keyword
+                       (str/replace (last (str/split key #"/")) #"\.edn$" ""))
+                :name (last (str/split key #"/"))
+                :path key}))))))
 
 (defn snapshot-metadata
   "Get metadata for a snapshot without loading the full value.

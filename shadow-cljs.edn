@@ -1,0 +1,3 @@
+{:builds {:node-test {:ns-regexp "still\\..*-test"
+                      :output-to "target/node-test/tests.js"
+                      :target    :node-test}}}

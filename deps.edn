@@ -1,19 +1,15 @@
-{:aliases {:bb    {:extra-deps {org.babashka/babashka {:mvn/version
-                                                       "1.12.218"}}}
+{:aliases {:bb    {:extra-deps {babashka/babashka {:mvn/version "1.12.218"}}}
            :build {:deps       {io.github.clojure/tools.build {:mvn/version
-                                                               "0.10.13"}
-                                slipset/deps-deploy {:mvn/version "0.2.3"}}
+                                                               "0.10.14"}
+                                slipset/deps-deploy {:mvn/version "0.2.5"}}
                    :ns-default build}
            :cljs  {:extra-deps  {org.clojure/clojurescript {:mvn/version
-                                                            "1.11.60"}
+                                                            "1.12.145"}
                                  thheller/shadow-cljs      {:mvn/version
-                                                            "3.4.10"}}
+                                                            "3.4.11"}}
                    :extra-paths ["test"]}
-           :dev   {:extra-deps  {djblue/portal {:mvn/version "0.64.1"}}
+           :dev   {:extra-deps  {djblue/portal {:mvn/version "0.65.0"}}
                    :extra-paths ["dev"]}
-           :repl  {:extra-deps   {cider/cider-nrepl {:mvn/version "0.59.0"}
-                                  nrepl/nrepl       {:mvn/version "1.7.0"}}
-                   :still/config {:color? false}}
            :test  {:exec-fn      cognitect.test-runner.api/test
                    :extra-deps   {io.github.cognitect-labs/test-runner
                                   {:git/sha "dfb30dd"
