@@ -9,10 +9,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v5.2.0
+      - uses: actions/setup-java@v5
         with:
           java-version: "21"
           distribution: "corretto"
@@ -36,6 +36,6 @@ jobs:
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
           VERSION: ${{ env.VERSION }}
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v3.0.0
+        uses: softprops/action-gh-release@v3
         with:
           files: target/*.jar

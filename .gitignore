@@ -1,7 +1,6 @@
 *.class
 *.jar
 .DS_Store
-.claude
 .clj-kondo/.cache/*
 .cpcache/
 .helix/
@@ -16,7 +15,6 @@
 /classes/
 /lib/
 /target/
-CLAUDE.md
 node_modules
 pom.xml
 pom.xml.asc

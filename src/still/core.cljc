@@ -18,8 +18,8 @@
             #?@(:clj [[clojure.test :as t] [still.location :as location]
                       [still.rewrite :as rewrite]]
                 :cljs [[cljs.test :as t :include-macros true]
-                       [still.node-io]
-                       [still.rewrite-cljs]])))
+                       [still.node-io :as node-io]
+                       [still.rewrite-cljs :as rewrite-cljs]])))
 
 (defn in-test-context?
   "Check if we're currently inside a deftest context.
@@ -243,6 +243,109 @@
         serialized-expected (serialize/serialize-value expected)]
     (compare-inline-snapshots serialized-expected serialized-value location)))
 
+(defn auto-edit-snapshot!
+  "Insert or update the inline expected value for a bare snap! call.
+
+  Host-specific source editing lives behind reader conditionals. Returns true
+  (or a test/is result in test context) on success; throws otherwise.
+
+  Arguments:
+  - value: the (already evaluated) snapshot value
+  - compile-time-file: source file captured by the snap! macro, or nil
+  - line: line number of the snap! call (compile-time, pre-edit)"
+  [value compile-time-file line]
+  (let [serialized (serialize/serialize-value value)]
+    #?(:clj
+         (let [runtime-file  (or compile-time-file (try-get-nrepl-file))
+               absolute-path (location/resolve-file-path runtime-file)
+               location      {:absolute-path absolute-path
+                              :file          runtime-file
+                              :line          line}]
+           (if absolute-path
+             (let [result
+                   (rewrite/add-expected-value! absolute-path line serialized)]
+               (case (:status result)
+                 :inserted
+                 (do (when-not (in-test-context?)
+                       (println "✓ Inline snapshot created at"
+                                (location/location-string location)))
+                     (if (in-test-context?) (t/is true (:message result)) true))
+                 :updated
+                 (do (when-not (in-test-context?)
+                       (println "✓ Inline snapshot updated at"
+                                (location/location-string location)))
+                     (if (in-test-context?) (t/is true (:message result)) true))
+                 (:not-found :error)
+                 (throw (ex-info "Failed to update source file" result))))
+             (throw
+              (ex-info
+               (str
+                "Cannot use snap! without expected value in REPL context.\n\n"
+                "When evaluating code in the REPL (not loading from file), "
+                "snap! cannot determine the source file location.\n\n"
+                "This may happen if:\n"
+                "  - Your editor doesn't send the :file parameter during eval\n"
+                "  - You're using nREPL < 1.5.1 (upgrade recommended)\n"
+                "  - You're using an older REPL client\n\n" "Solutions:\n"
+                "  1. Load the file instead of evaluating (C-c C-k in CIDER)\n"
+                "  2. Use (snap :key value) for REPL-based testing\n"
+                "  3. Provide expected value manually: (snap! expr expected)\n"
+                "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
+               {:context :repl
+                :file    runtime-file
+                :line    line}))))
+       :cljs
+         (if (node-io/node-env?)
+           (let [absolute-path (node-io/resolve-file-path compile-time-file)]
+             (if absolute-path
+               (let [result (rewrite-cljs/add-expected-value! absolute-path
+                                                              line
+                                                              serialized)]
+                 (case (:status result)
+                   :inserted (do (when-not (in-test-context?)
+                                   (println "✓ Inline snapshot created at"
+                                            (str compile-time-file ":" line)))
+                                 (if (in-test-context?)
+                                   (t/is true (:message result))
+                                   true))
+                   :updated (do (when-not (in-test-context?)
+                                  (println "✓ Inline snapshot updated at"
+                                           (str compile-time-file ":" line)))
+                                (if (in-test-context?)
+                                  (t/is true (:message result))
+                                  true))
+                   (throw (ex-info "Failed to update source file" result))))
+               (throw (ex-info "snap! could not resolve source file"
+                               {:file compile-time-file
+                                :line line}))))
+           (throw
+            (ex-info
+             (str
+              "snap! automatic editing not supported in this environment.\n\n"
+              "Automatic source editing requires Node.js.\n\n" "Solutions:\n"
+              "  1. Run tests under Node.js (e.g. bb test-cljs)\n"
+              "  2. Provide expected value manually: (snap! expr expected)")
+             {:value value}))))))
+
+(defn compare-inline-snapshot!
+  "Compare a snap! value against its inline expected value.
+
+  Resolves the source location per host (JVM resolves an absolute path for
+  diagnostics; ClojureScript passes the compile-time file as-is), then delegates
+  to snap!-impl."
+  [value expected compile-time-file line]
+  #?(:clj (let [runtime-file  (or compile-time-file (try-get-nrepl-file))
+                absolute-path (location/resolve-file-path runtime-file)]
+            (snap!-impl value
+                        expected
+                        {:absolute-path absolute-path
+                         :file          runtime-file
+                         :line          line}))
+     :cljs (snap!-impl value
+                       expected
+                       {:file compile-time-file
+                        :line line})))
+
 #?(:clj
      (defmacro snap!
        "Inline snapshot testing with automatic source editing.
@@ -286,122 +389,21 @@
                                   (when (:ns &env)
                                     (location/file-from-ns (:name (:ns &env)))))
               line (:line (meta &form))]
-          (if (:ns &env)
-            ;; ClojureScript target
-            `(if (or *assert* (in-test-context?))
-               (let [value#      ~value-expr
-                     serialized# (serialize/serialize-value value#)]
-                 (if (~'still.node-io/node-env?)
-                   (let [absolute-path# (~'still.node-io/resolve-file-path
-                                         ~compile-time-file)]
-                     (if absolute-path#
-                       (let [result# (~'still.rewrite-cljs/add-expected-value!
-                                      absolute-path#
-                                      ~line
-                                      serialized#)]
-                         (case (:status result#)
-                           :inserted
-                           (do (when-not (in-test-context?)
-                                 (println "✓ Inline snapshot created at"
-                                          (str ~compile-time-file ":" ~line)))
-                               (if (in-test-context?)
-                                 (~'cljs.test/is true (:message result#))
-                                 true))
-                           :updated
-                           (do (when-not (in-test-context?)
-                                 (println "✓ Inline snapshot updated at"
-                                          (str ~compile-time-file ":" ~line)))
-                               (if (in-test-context?)
-                                 (~'cljs.test/is true (:message result#))
-                                 true))
-                           (throw (ex-info "Failed to update source file"
-                                           result#))))
-                       (throw (ex-info "snap! could not resolve source file"
-                                       {:file ~compile-time-file
-                                        :line ~line}))))
-                   (throw
-                    (ex-info
-                     (str
-                      "snap! automatic editing not supported in this environment.\n\n"
-                      "Automatic source editing requires Node.js.\n\n"
-                      "Solutions:\n"
-                      "  1. Run tests under Node.js (e.g. bb test-cljs)\n"
-                      "  2. Provide expected value manually: (snap! expr expected)")
-                     {:value value#}))))
-               true)
-            ;; JVM/Babashka target
-            `(if (or *assert* (in-test-context?))
-               (let [runtime-file#  (or ~compile-time-file (try-get-nrepl-file))
-                     absolute-path# (location/resolve-file-path runtime-file#)
-                     value#         ~value-expr
-                     serialized#    (serialize/serialize-value value#)
-                     location#      {:absolute-path absolute-path#
-                                     :file          runtime-file#
-                                     :line          ~line}]
-                 (if absolute-path#
-                   (let [result# (rewrite/add-expected-value! absolute-path#
-                                                              ~line
-                                                              serialized#)]
-                     (case (:status result#)
-                       :inserted (do (when-not (in-test-context?)
-                                       (println "✓ Inline snapshot created at"
-                                                (location/location-string
-                                                 location#)))
-                                     (if (in-test-context?)
-                                       (t/is true (:message result#))
-                                       true))
-                       :updated (do (when-not (in-test-context?)
-                                      (println "✓ Inline snapshot updated at"
-                                               (location/location-string
-                                                location#)))
-                                    (if (in-test-context?)
-                                      (t/is true (:message result#))
-                                      true))
-                       (:not-found :error)
-                       (throw (ex-info "Failed to update source file"
-                                       result#))))
-                   (throw
-                    (ex-info
-                     (str
-                      "Cannot use snap! without expected value in REPL context.\n\n"
-                      "When evaluating code in the REPL (not loading from file), "
-                      "snap! cannot determine the source file location.\n\n"
-                      "This may happen if:\n"
-                      "  - Your editor doesn't send the :file parameter during eval\n"
-                      "  - You're using nREPL < 1.5.1 (upgrade recommended)\n"
-                      "  - You're using an older REPL client\n\n" "Solutions:\n"
-                      "  1. Load the file instead of evaluating (C-c C-k in CIDER)\n"
-                      "  2. Use (snap :key value) for REPL-based testing\n"
-                      "  3. Provide expected value manually: (snap! expr expected)\n"
-                      "  4. Upgrade to nREPL 1.5.1+ and ensure your editor sends :file")
-                     {:context :repl
-                      :file    runtime-file#
-                      :line    ~line}))))
-               true))))
+          `(if (or *assert* (in-test-context?))
+             (auto-edit-snapshot! ~value-expr ~compile-time-file ~line)
+             true)))
        ([value-expr expected]
         (let [compile-time-file (if (and *file* (not= *file* "NO_SOURCE_PATH"))
                                   *file*
                                   (when (:ns &env)
                                     (location/file-from-ns (:name (:ns &env)))))
               line (:line (meta &form))]
-          (if (:ns &env)
-            ;; ClojureScript target
-            `(if (or *assert* (in-test-context?))
-               (snap!-impl ~value-expr
-                           ~expected
-                           {:file ~compile-time-file
-                            :line ~line})
-               true)
-            ;; JVM/Babashka target
-            `(if (or *assert* (in-test-context?))
-               (let [runtime-file#  (or ~compile-time-file (try-get-nrepl-file))
-                     absolute-path# (location/resolve-file-path runtime-file#)]
-                 (snap!-impl ~value-expr
-                             ~expected
-                             {:absolute-path absolute-path#
-                              :file          runtime-file#
-                              :line          ~line}))
-               true))))))
+          `(if (or *assert* (in-test-context?))
+             (compare-inline-snapshot! ~value-expr
+                                       ~expected
+                                       ~compile-time-file
+                                       ~line)
+             true)))))
 
 (comment
   ;; Example usage in REPL
