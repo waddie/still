@@ -209,6 +209,11 @@ Handle unstable values like timestamps and UUIDs:
 (snap :person (->Person "Alice" 30))
 ```
 
+Values that cannot round-trip through EDN (records without a registered
+serialiser, functions, arbitrary objects) are rejected at write time with an
+error, since the resulting snapshot could never match or load again. Register
+a serialiser for the offending type to fix this.
+
 ### Diff visualisation
 
 Full-colour diffs powered by `deep-diff2`:

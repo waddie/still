@@ -27,7 +27,8 @@
                  #_{:clj-kondo/ignore [:unused-namespace]}
                  [cljs.reader :as edn])
             #?(:clj [babashka.fs :as fs])
-            #?(:clj [clojure.string])))
+            #?(:clj [clojure.string])
+            #?(:cljs [goog.object :as gobj])))
 
 ;; Default configuration
 (def ^:private default-config
@@ -145,11 +146,17 @@
   - STILL_AUTO_UPDATE: 'true' or 'false'"
   []
   (let [env-snapshot-dir #?(:clj (System/getenv "STILL_SNAPSHOT_DIR")
+                            ;; String key access survives Closure advanced
+                            ;; compilation, unlike property access
                             :cljs (when (exists? js/process)
-                                    (.-STILL_SNAPSHOT_DIR js/process.env)))
+                                    (gobj/getValueByKeys js/process
+                                                         "env"
+                                                         "STILL_SNAPSHOT_DIR")))
         env-auto-update  #?(:clj (System/getenv "STILL_AUTO_UPDATE")
                             :cljs (when (exists? js/process)
-                                    (.-STILL_AUTO_UPDATE js/process.env)))]
+                                    (gobj/getValueByKeys js/process
+                                                         "env"
+                                                         "STILL_AUTO_UPDATE")))]
     (cond-> {}
       env-snapshot-dir (assoc :snapshot-dir env-snapshot-dir)
       env-auto-update (assoc :auto-update? (= "true" env-auto-update)))))
@@ -192,7 +199,7 @@
 
   Example:
     (config/get-value :snapshot-dir) => \"test/still\"
-    (config/get-value :enabled?) => true"
+    (config/get-value :auto-update?) => false"
   [k]
   (clojure.core/get (get-config) k))
 

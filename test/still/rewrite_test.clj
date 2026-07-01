@@ -126,8 +126,7 @@
   (testing "identical value expressions are disambiguated, edited out of order"
     ;; Both calls share the value expression (f). The bare-preference rule
     ;; (an already-edited sibling is no longer bare) keeps them distinct
-    ;; even
-    ;; when edited bottom-up.
+    ;; even when edited bottom-up.
     (spit tmp-file "(snap! (f))\n(snap! (f))\n")
     (rw/add-expected-value! tmp-file 2 "B" (sig '(f)))
     (rw/add-expected-value! tmp-file 1 "A" (sig '(f)))
@@ -155,6 +154,50 @@
           "second snap! must be found despite line shift")
       (is (str/includes? (slurp tmp-file) "(snap! (second-call) \"result2\")")
           "second snap! expected value written correctly"))))
+
+(deftest test-find-all-snap-calls
+  (testing "finds snap and snap! calls, including namespaced keys"
+    (spit tmp-file
+          (str "(snap :plain {:a 1})\n"
+               "(snap :ns/key {:b 2})\n" "(snap! (compute))\n"
+               "(snap! (compute-2) 42)\n" "(still.core/snap! (compute-3))\n"
+               "(still.core/snap :qualified {:c 3})\n"
+               "(snap (dynamic-key) {:d 4})\n"))
+    (is
+     (= [{:key  :plain
+          :line 1
+          :type :snap}
+         {:key  :ns/key
+          :line 2
+          :type :snap}
+         {:line 3
+          :type :snap!}
+         {:line 4
+          :type :snap!}
+         {:line 5
+          :type :snap!}
+         {:key  :qualified
+          :line 6
+          :type :snap}
+         {:line 7
+          :type :snap}]
+        (rw/find-all-snap-calls tmp-file)))))
+
+(deftest test-no-temp-files-left-behind
+  (testing "successful edits leave no temp files next to the target"
+    (spit tmp-file "(snap! (+ 1 2))\n")
+    (rw/add-expected-value! tmp-file 1 3)
+    (rw/add-expected-value! tmp-file 1 4)
+    (is (= "(snap! (+ 1 2) 4)\n" (slurp tmp-file)))
+    (is (empty? (fs/glob (fs/temp-dir) "still_rewrite_test.cljc.*.tmp"))))
+  (testing
+    "an unwritable expected value reports :error and leaves no temp
+  files"
+    (spit tmp-file "(snap! (+ 1 2))\n")
+    (let [result (rw/add-expected-value! tmp-file 1 identity)]
+      (is (= :error (:status result))))
+    (is (= "(snap! (+ 1 2))\n" (slurp tmp-file)) "source is untouched")
+    (is (empty? (fs/glob (fs/temp-dir) "still_rewrite_test.cljc.*.tmp")))))
 
 (deftest test-rerun-updates-existing-values
   (testing "a second evaluation pass updates both calls by value, not by offset"

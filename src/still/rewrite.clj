@@ -10,7 +10,8 @@
 
   Uses rewrite-clj to parse, locate, and modify snap! calls in source files
   while preserving formatting and comments."
-  (:require [rewrite-clj.parser :as p]
+  (:require [babashka.fs :as fs]
+            [rewrite-clj.parser :as p]
             [rewrite-clj.zip :as z]
             [still.serialize :as serialize]))
 
@@ -22,13 +23,23 @@
       p/parse-string-all
       z/of-node))
 
+(defn ^:private call-to?
+  "Check if a zipper location is a list call to one of the symbols in syms."
+  [loc syms]
+  (and (z/list? loc)
+       (when-let [first-child (z/down loc)]
+         (let [sym (try (z/sexpr first-child) (catch Exception _ nil))]
+           (contains? syms sym)))))
+
 (defn ^:private snap!-call?
   "Check if a zipper location is a snap! function call."
   [loc]
-  (and (z/list? loc)
-       (when-let [first-child (z/down loc)]
-         (let [sym (z/sexpr first-child)]
-           (or (= sym 'snap!) (= sym 'still.core/snap!))))))
+  (call-to? loc '#{snap! still.core/snap!}))
+
+(defn ^:private snap-call?
+  "Check if a zipper location is a snap function call."
+  [loc]
+  (call-to? loc '#{snap still.core/snap}))
 
 (defn ^:private find-snap!-at-line
   "Find a snap! call at the specified line number.
@@ -160,11 +171,29 @@
           (z/replace expected-value-node)
           z/up))))
 
+(defn ^:private atomic-spit
+  "Write content to path via a temp file in the same directory, moved
+  atomically into place so a crash cannot truncate the target. Falls back
+  to a plain move when the filesystem does not support atomic moves."
+  [path content]
+  (let [target (fs/absolutize path)
+        tmp    (fs/create-temp-file {:dir    (str (fs/parent target))
+                                     :prefix (str (fs/file-name target) ".")
+                                     :suffix ".tmp"})]
+    (try (spit (str tmp) content)
+         (try (fs/move tmp
+                       target
+                       {:atomic-move      true
+                        :replace-existing true})
+              (catch java.io.IOException _
+                (fs/move tmp target {:replace-existing true})))
+         (catch Exception e (fs/delete-if-exists tmp) (throw e)))
+    nil))
+
 (defn ^:private write-zipper
   "Write a zipper back to a file, preserving formatting."
   [zloc file-path]
-  (let [content (z/root-string zloc)]
-    (spit file-path content)))
+  (atomic-spit file-path (z/root-string zloc)))
 
 (defn add-expected-value!
   "Add or update the expected value in a snap! call.
@@ -277,6 +306,50 @@
                          {:error     (.getMessage e)
                           :file-path file-path}
                          e)))))
+
+(defn find-all-snap-calls
+  "Find all snap and snap! calls in a file.
+
+  Returns a sequence of maps:
+  - {:type :snap :key <keyword> :line <n>} for snap calls (the :key entry is
+    present when the first argument is a keyword literal)
+  - {:type :snap! :line <n>} for snap! calls
+
+  Throws ex-info if the file cannot be parsed."
+  [file-path]
+  (try
+    (let [zloc (parse-file file-path)]
+      (loop [loc     zloc
+             results []]
+        (if (z/end? loc)
+          results
+          (recur (z/next loc)
+                 (cond (snap-call? loc) (let [line (-> loc
+                                                       z/node
+                                                       meta
+                                                       :row)
+                                              k    (try (some-> loc
+                                                                z/down
+                                                                z/right
+                                                                z/sexpr)
+                                                        (catch Exception _
+                                                          nil))]
+                                          (conj results
+                                                (cond-> {:line line
+                                                         :type :snap}
+                                                  (keyword? k) (assoc :key k))))
+                       (snap!-call? loc) (conj results
+                                               {:line (-> loc
+                                                          z/node
+                                                          meta
+                                                          :row)
+                                                :type :snap!})
+                       :else results)))))
+    (catch Exception e
+      (throw (ex-info (str "Failed to parse file: " file-path)
+                      {:error     (.getMessage e)
+                       :file-path file-path}
+                      e)))))
 
 (comment
   ;; Example usage. Find all snap! calls in a file

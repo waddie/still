@@ -10,8 +10,9 @@
   (:require #?(:clj [clojure.test :refer [deftest testing is use-fixtures]]
                :cljs [cljs.test :refer-macros
                       [deftest testing is use-fixtures]])
+            [still.config :as config]
             [still.snapshot :as snapshot]
-            [still.config :as config]))
+            #?(:clj [still.serialize :as serialize])))
 
 (defn cleanup-test-snapshots
   "Clean up test snapshots before and after tests."
@@ -57,7 +58,12 @@
     (is (thrown-with-msg? #?(:clj Exception
                              :cljs js/Error)
                           #"invalid path characters"
-                          (snapshot/snapshot-path (keyword ".." "name"))))))
+                          (snapshot/snapshot-path (keyword ".." "name")))))
+  (testing "rejects keys that would write outside the snapshot directory"
+    (is (thrown-with-msg? #?(:clj Exception
+                             :cljs js/Error)
+                          #"invalid path characters"
+                          (snapshot/snapshot-path (keyword "a" "b/c"))))))
 
 (deftest write-and-read-snapshot-test
   (testing "writes and reads a simple snapshot"
@@ -152,3 +158,32 @@
 (deftest read-nonexistent-snapshot-test
   (testing "returns nil for non-existent snapshot"
     (is (nil? (snapshot/read-snapshot :does-not-exist)))))
+
+(defrecord UnreadableRecord [x])
+
+(deftest write-unreadable-value-test
+  (testing "rejects records without a registered serialiser"
+    (is (thrown-with-msg? #?(:clj Exception
+                             :cljs js/Error)
+                          #"cannot be written"
+                          (snapshot/write-snapshot! :test-key-1
+                                                    (->UnreadableRecord 1))))
+    (is (false? (snapshot/snapshot-exists? :test-key-1))))
+  (testing "rejects values containing functions"
+    (is (thrown-with-msg? #?(:clj Exception
+                             :cljs js/Error)
+                          #"cannot be written"
+                          (snapshot/write-snapshot! :test-key-2 {:f identity})))
+    (is (false? (snapshot/snapshot-exists? :test-key-2)))))
+
+#?(:clj (do (defrecord ReadableRecord [x])
+            (deftest write-record-with-serializer-test
+              (testing "records with a registered serialiser round-trip"
+                (serialize/register-serializer! ReadableRecord
+                                                (fn [r]
+                                                  {:type ::readable
+                                                   :x    (:x r)}))
+                (snapshot/write-snapshot! :test-key-3 (->ReadableRecord 7))
+                (is (= {:type ::readable
+                        :x    7}
+                       (snapshot/read-snapshot :test-key-3)))))))

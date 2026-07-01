@@ -27,6 +27,25 @@
   [file-path content]
   (.writeFileSync (fs) file-path content "utf8"))
 
+(defn write-file-atomic!
+  "Write a string to a file via a temp file in the same directory, renamed
+  into place so a crash cannot truncate the target."
+  [file-path content]
+  (let [p   (path)
+        dir (.dirname p file-path)
+        tmp (.join p
+                   dir
+                   (str "."
+                        (.basename p file-path)
+                        "."
+                        (.slice (.toString (js/Math.random) 36) 2)
+                        ".tmp"))]
+    (try (.writeFileSync (fs) tmp content "utf8")
+         (.renameSync (fs) tmp file-path)
+         (catch :default e
+           (when (.existsSync (fs) tmp) (.unlinkSync (fs) tmp))
+           (throw e)))))
+
 (defn file-exists?
   "Returns true if the file at path exists."
   [file-path]
@@ -53,20 +72,15 @@
   "Resolve a source filename to an absolute path.
 
   Searches src/, test/, dev/, and the current working directory.
-  Handles .class → .clj/.cljc extension substitution for compiled forms.
   Returns the absolute path string, or nil if not found."
   [filename]
   (when filename
-    (if (and (str/starts-with? filename "/") (file-exists? filename))
-      filename
-      (let [p          (path)
-            cwd        (.cwd js/process)
-            variants   [filename
-                        (str/replace filename #"\.class$" ".clj")
-                        (str/replace filename #"\.class$" ".cljc")]
-            candidates (for [base  ["src" "test" "dev" "."]
-                             v     variants
-                             :let  [c (.resolve p cwd base v)]
-                             :when (file-exists? c)]
-                         c)]
-        (first candidates)))))
+    (let [p (path)]
+      (if (and (.isAbsolute p filename) (file-exists? filename))
+        filename
+        (let [cwd        (.cwd js/process)
+              candidates (for [base  ["src" "test" "dev" "."]
+                               :let  [c (.resolve p cwd base filename)]
+                               :when (file-exists? c)]
+                           c)]
+          (first candidates))))))

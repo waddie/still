@@ -113,7 +113,7 @@
 
 (defn- write-zipper
   [zloc file-path]
-  (node-io/write-file file-path (z/root-string zloc)))
+  (node-io/write-file-atomic! file-path (z/root-string zloc)))
 
 (defn add-expected-value!
   "Add or update the expected value in a snap! call.

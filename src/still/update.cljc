@@ -11,7 +11,8 @@
   Provides CLI-friendly operations for managing snapshots."
   (:require [still.config :as config]
             [still.snapshot :as snapshot]
-            #?(:clj [babashka.fs :as fs])))
+            #?(:clj [babashka.fs :as fs])
+            #?(:clj [still.rewrite :as rewrite])))
 
 (defn list-all-snapshots
   "List all snapshots in the snapshot directory.
@@ -78,18 +79,15 @@
 
 #?(:clj
      (defn find-snap-calls-in-file
-       "Find all snap/snap! calls in a file.
+       "Find all snap/snap! calls in a file, located by parsing rather than
+     pattern matching.
 
-     Returns a sequence of maps with :type (:snap or :snap!) and :key/:line."
+     Returns a sequence of maps with :type (:snap or :snap!) and :line;
+     :snap entries also carry :key when the key is a keyword literal.
+     Returns an empty sequence (with a warning) when the file cannot be
+     parsed."
        [file-path]
-       (try (let [content      (slurp file-path)
-                  ;; Simple regex-based detection (could be improved with
-                  ;; proper parsing)
-                  snap-pattern #"\(snap\s+:([a-zA-Z0-9_-]+)"
-                  snap-matches (re-seq snap-pattern content)]
-              (for [[_ key-str] snap-matches]
-                {:key  (keyword key-str)
-                 :type :snap}))
+       (try (rewrite/find-all-snap-calls file-path)
             (catch Exception e
               (println "Warning: Failed to parse" file-path ":" (.getMessage e))
               [])))
@@ -107,7 +105,7 @@
        (when (fs/exists? "test")
          (->> (fs/glob "test" "**/*.{clj,cljs,cljc}")
               (mapcat #(find-snap-calls-in-file (str %)))
-              (map :key)
+              (keep :key)
               (into #{}))))
    :cljs (defn scan-test-directory "Not implemented in ClojureScript." [] #{}))
 

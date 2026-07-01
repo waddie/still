@@ -9,6 +9,8 @@
   "Tests for still.serialize namespace."
   (:require #?(:clj [clojure.test :refer [deftest testing is]]
                :cljs [cljs.test :refer-macros [deftest testing is]])
+            [clojure.string :as str]
+            #?(:clj [still.config :as config])
             [still.serialize :as serialize])
   #?(:clj (:import [java.util Date UUID]
                    [java.time Instant LocalDate])))
@@ -98,6 +100,15 @@
                 (is (false? (serialize/stable-value? {:date (Date.)
                                                       :id   1})))))))
 
+(deftest format-value-for-source-test
+  (testing "formats readable values"
+    (is (= "{:a 1}" (str/trim (serialize/format-value-for-source {:a 1})))))
+  (testing "rejects values whose printed form is not readable EDN"
+    (is (thrown-with-msg? #?(:clj Exception
+                             :cljs js/Error)
+                          #"cannot be written"
+                          (serialize/format-value-for-source identity)))))
+
 (deftest pretty-print-test
   (testing "pretty prints simple values"
     (is (string? (serialize/pretty-print {:a 1})))
@@ -132,3 +143,26 @@
                   ;; After serialization, the result should be stable
                   (is (true? (serialize/stable-value? (serialize/serialize-value
                                                        record)))))))))
+
+#?(:clj (do (defrecord DateWrapper [d])
+            (deftest serializer-output-walked-test
+              (testing "custom serialiser output is itself serialised"
+                (serialize/register-serializer! DateWrapper
+                                                (fn [w]
+                                                  {:type ::wrapper
+                                                   :when (:d w)}))
+                (let [result (serialize/serialize-value (->DateWrapper (Date.
+                                                                        0)))]
+                  (is (= :still.serialize/date (get-in result [:when :type])))
+                  (is (string? (get-in result [:when :iso8601]))))))))
+
+#?(:clj (deftest config-serializer-map-like-test
+          (testing "config serialisers fire for map-like types"
+            (config/override! {:serializers {clojure.lang.PersistentTreeMap
+                                             (fn [m]
+                                               {:keys (vec (keys m))
+                                                :type ::sorted})}})
+            (try (is (= {:keys [:a :b]
+                         :type ::sorted}
+                        (serialize/serialize-value (sorted-map :b 2 :a 1))))
+                 (finally (config/override! {}))))))

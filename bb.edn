@@ -2,7 +2,6 @@
         rewrite-clj/rewrite-clj {:mvn/version "1.2.55"}}
  :paths ["src" "test"]
  :still/config {:auto-update? false
-                :enabled?     true
                 :snapshot-dir "test/still"}
  :tasks
  {:requires ([clojure.test :as t] [babashka.classpath :as cp])
@@ -14,8 +13,18 @@
                        (clojure.main/repl))}
   test      {:doc  "Run tests with Babashka"
              :task (do (cp/add-classpath "src:test")
-                       (require 'still.core-test)
-                       (let [result (t/run-tests 'still.core-test)]
+                       (require 'still.core-test
+                                'still.config-test
+                                'still.diff-test
+                                'still.snapshot-test
+                                'still.serialize-test
+                                'still.rewrite-test)
+                       (let [result (t/run-tests 'still.core-test
+                                                 'still.config-test
+                                                 'still.diff-test
+                                                 'still.snapshot-test
+                                                 'still.serialize-test
+                                                 'still.rewrite-test)]
                          (when-not (zero? (+ (:fail result) (:error result)))
                            (System/exit 1))))}
   test-cljs {:doc "Run tests under Node.js via shadow-cljs"

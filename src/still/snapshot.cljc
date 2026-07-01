@@ -34,8 +34,10 @@
         ns-str   (namespace snapshot-key)]
     (when (or (str/includes? name-str "..")
               (str/includes? name-str "\\")
+              (str/includes? name-str "/")
               (and ns-str (str/includes? ns-str ".."))
-              (and ns-str (str/includes? ns-str "\\")))
+              (and ns-str (str/includes? ns-str "\\"))
+              (and ns-str (str/includes? ns-str "/")))
       (throw (ex-info "Snapshot key contains invalid path characters"
                       {:key       snapshot-key
                        :name      name-str
@@ -59,8 +61,8 @@
   "Generate the file path for a snapshot key.
 
   Examples:
-    (snapshot-path :user-test) => \"test/still/user_test.edn\"
-    (snapshot-path :api/create-user) => \"test/still/api_create_user.edn\""
+    (snapshot-path :user-test) => \"test/still/user-test.edn\"
+    (snapshot-path :api/create-user) => \"test/still/api_create-user.edn\""
   [snapshot-key]
   (validate-snapshot-key snapshot-key)
   (let [dir      (config/snapshot-dir)
@@ -117,11 +119,33 @@
                                :path  path}
                               e))))))
 
+#?(:clj
+     (defn ^:private atomic-spit
+       "Write content to path via a temp file in the same directory, moved
+       atomically into place so a crash cannot truncate the target. Falls
+       back to a plain move when the filesystem does not support atomic
+       moves."
+       [path content]
+       (let [target (fs/absolutize path)
+             tmp    (fs/create-temp-file {:dir    (str (fs/parent target))
+                                          :prefix (str (fs/file-name target)
+                                                       ".")
+                                          :suffix ".tmp"})]
+         (try (spit (str tmp) content)
+              (try (fs/move tmp
+                            target
+                            {:atomic-move      true
+                             :replace-existing true})
+                   (catch java.io.IOException _
+                     (fs/move tmp target {:replace-existing true})))
+              (catch Exception e (fs/delete-if-exists tmp) (throw e)))
+         nil)))
+
 #?(:clj (defn ^:private write-file
-          "Write EDN content to a file."
+          "Write already-printed EDN content to a file."
           [path content]
           (try (ensure-parent-dir path)
-               (spit path (serialize/pretty-print content))
+               (atomic-spit path content)
                (catch Exception e
                  (throw (ex-info (str "Failed to write snapshot file: " path)
                                  {:error (.getMessage e)
@@ -129,12 +153,13 @@
                                  e)))))
    :cljs
      (defn ^:private write-file
-       "Write EDN content to filesystem (Node.js) or localStorage (browser)."
+       "Write already-printed EDN content to filesystem (Node.js) or
+       localStorage (browser)."
        [path content]
        (try (if (node-io/node-env?)
               (do (node-io/ensure-parent-dir! path)
-                  (node-io/write-file path (serialize/pretty-print content)))
-              (.setItem js/localStorage path (serialize/pretty-print content)))
+                  (node-io/write-file-atomic! path content))
+              (.setItem js/localStorage path content))
             (catch js/Error e
               (throw (ex-info (str "Failed to write snapshot: " path)
                               {:error (.-message e)
@@ -180,12 +205,19 @@
   "Write a snapshot to storage.
 
   The value will be serialised and pretty-printed.
-  Metadata is added if configured."
+  Metadata is added if configured.
+
+  Throws ex-info when the serialised value cannot be read back as EDN
+  (e.g. a record without a registered serialiser), since such a snapshot
+  could never be loaded again."
   [snapshot-key value]
   (let [path          (snapshot-path snapshot-key)
         serialized    (serialize/serialize-value value)
-        with-metadata (add-metadata serialized snapshot-key)]
-    (write-file path with-metadata)
+        with-metadata (add-metadata serialized snapshot-key)
+        content       (-> (serialize/pretty-print with-metadata)
+                          (serialize/ensure-readable-edn with-metadata
+                                                         {:key snapshot-key}))]
+    (write-file path content)
     value))
 
 (defn update-snapshot!

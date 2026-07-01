@@ -11,6 +11,7 @@
   Provides two main functions:
   - snap: Filesystem-based snapshot testing with dual behaviour (test vs REPL)
   - snap!: Inline snapshot testing with automatic source code editing"
+  #?(:cljs (:require-macros [still.core]))
   (:require [still.config :as config]
             [still.diff :as diff]
             [still.serialize :as serialize]
@@ -79,9 +80,10 @@
     (cond
       ;; Auto-update mode: update snapshot and pass
       auto-update? (do (snapshot/update-snapshot! snapshot-key actual)
-                       (when-not in-test?
-                         (println "✓ Snapshot updated:" snapshot-key))
-                       true)
+                       (if in-test?
+                         (t/is true (str "Snapshot updated: " snapshot-key))
+                         (do (println "✓ Snapshot updated:" snapshot-key)
+                             true)))
       ;; Test context: use clojure.test/is for assertion
       in-test? (t/is (= expected actual)
                      (diff/mismatch-message snapshot-key

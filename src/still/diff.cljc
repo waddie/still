@@ -9,9 +9,9 @@
   "Diff visualisation for snapshot mismatches.
 
   Provides colourised, structured diffs using lambdaisland/deep-diff2."
-  (:require [still.config :as config]
+  (:require [clojure.string :as s]
             [lambdaisland.deep-diff2 :as dd]
-            [clojure.string :as s]
+            [still.config :as config]
             #?(:clj [clojure.pprint :as pprint]
                :cljs [cljs.pprint :as pprint])))
 
@@ -29,7 +29,9 @@
     :color? or :colour? - Enable ANSI colour output (default from config)"
   ([diff-result] (format-diff diff-result {}))
   ([diff-result opts]
-   (let [color? (or (get opts :color?) (get opts :colour?) (config/color?))]
+   (let [color? (cond (contains? opts :color?) (get opts :color?)
+                      (contains? opts :colour?) (get opts :colour?)
+                      :else (config/color?))]
      (with-out-str (if color?
                      (dd/pretty-print diff-result)
                      (dd/pretty-print diff-result

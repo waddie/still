@@ -13,30 +13,6 @@
   (:require [babashka.fs :as fs]
             [clojure.string :as s]))
 
-(defn get-call-site
-  "Get the call site information from the current stack trace.
-
-  Returns a map with:
-  - :file - Source file path
-  - :line - Line number
-  - :column - Column number (if available)
-  - :ns - Namespace
-
-  The depth parameter controls how far up the stack to look:
-  - depth 0: the call to get-call-site itself
-  - depth 1: the caller of get-call-site
-  - depth 2: the caller's caller, etc.
-
-  For snap! calls, we typically want depth 1 or 2."
-  [depth]
-  (let [stack-trace (.getStackTrace (Thread/currentThread))
-        frame       (nth stack-trace depth nil)]
-    (when frame
-      {:class  (.getClassName frame)
-       :file   (.getFileName frame)
-       :line   (.getLineNumber frame)
-       :method (.getMethodName frame)})))
-
 (defn resolve-file-path
   "Resolve a source file name to an absolute path.
 
@@ -54,18 +30,10 @@
     (if (and (fs/absolute? filename) (fs/exists? filename))
       (str (fs/absolutize filename))
       ;; Otherwise, search for it
-      (let [search-paths  ["src" "test" "dev" "."]
-            file-variants [filename
-                           ;; Try converting .class files to .clj
-                           (clojure.string/replace filename #"\.class$" ".clj")
-                           (clojure.string/replace filename
-                                                   #"\.class$"
-                                                   ".cljc")]]
-        (first (for [base-path search-paths
-                     variant   file-variants
-                     :let      [candidate (fs/file base-path variant)]
-                     :when     (fs/exists? candidate)]
-                 (str (fs/absolutize candidate))))))))
+      (first (for [base-path ["src" "test" "dev" "."]
+                   :let      [candidate (fs/file base-path filename)]
+                   :when     (fs/exists? candidate)]
+               (str (fs/absolutize candidate)))))))
 
 (defn file-from-ns
   "Convert a namespace to a source file path.
@@ -81,40 +49,6 @@
                     (str "test/" ns-path ".clj") (str "test/" ns-path ".cljc")
                     (str "dev/" ns-path ".clj") (str "dev/" ns-path ".cljc")]]
     (first (filter fs/exists? candidates))))
-
-(comment
-  (defn capture-location
-    "Capture the current source location for snap! calls.
-
-  This should be called from within a macro to capture the macro expansion site.
-  Returns a map suitable for passing to still.rewrite functions."
-    []
-    (let [call-site (get-call-site 2) ; Skip this fn and its caller
-          file-path (when (:file call-site)
-                      (resolve-file-path (:file call-site)))]
-      (when file-path (assoc call-site :absolute-path file-path)))))
-
-(defmacro with-location
-  "Capture location information at macro expansion time.
-
-  Returns a vector [value location-map] where location-map contains:
-  - :file - Source file name
-  - :line - Line number
-  - :absolute-path - Absolute file path (if resolvable)
-
-  Example:
-    (with-location (+ 1 2))
-    ;; => [3 {:file \"my_test.clj\" :line 42 :absolute-path \"/path/to/my_test.clj\"}]"
-  [expr]
-  (let [file          *file*
-        line          (:line (meta &form))
-        column        (:column (meta &form))
-        absolute-path (when file (resolve-file-path file))]
-    `[~expr
-      {:absolute-path ~absolute-path
-       :column        ~column
-       :file          ~file
-       :line          ~line}]))
 
 (defn location-string
   "Format a location map as a human-readable string.
@@ -132,17 +66,10 @@
         :else "<unknown location>"))
 
 (comment
-  ;; Example usage. Get current call site
-  (get-call-site 0)
-  ;; => {:file "location.clj" :line 145 :class "still.location" :method
-  ;; "eval"}
-  ;; Resolve a file
+  ;; Example usage. Resolve a file
   (resolve-file-path "still/core.cljc")
   ;; => "/Users/waddie/source/still/src/still/core.cljc"
   ;; Convert namespace to file
   (file-from-ns 'still.core)
   ;; => "src/still/core.cljc"
-  ;; Capture location with macro
-  (with-location (+ 1 2))
-  ;; => [3 {:file "location.clj" :line 155 ...}]
 )

@@ -12,6 +12,8 @@
   handlers for common edge cases like timestamps, UUIDs, and unstable values."
   (:require [clojure.string :as str]
             [still.config :as config]
+            #?(:clj [clojure.edn :as edn]
+               :cljs [cljs.reader :as edn])
             #?(:clj [clojure.pprint :as pprint]
                :cljs [cljs.pprint :as pprint]))
   #?(:clj (:import [java.util Date UUID]
@@ -89,31 +91,35 @@
     Serializable
       (serialize [v#] (~serializer-fn v#))))
 
-(defn serialize-with-custom
-  "Serialise a value using custom serialisers if available."
-  [value]
-  (let [custom-serializers (config/serializers)
-        value-type         #?(:clj (type value)
-                              :cljs (type value))]
-    (if-let [serializer (get custom-serializers value-type)]
-      (serializer value)
-      (serialize value))))
+(declare walk-serialize)
+
+(defn- walk-serialized-output
+  "Walk a serialiser's output so nested values (e.g. a Date inside a custom
+  serialiser's map) are serialised too. Skips the walk when the serialiser
+  returned its input unchanged, which also guards against infinite
+  recursion."
+  [in out]
+  (if (identical? out in) out (walk-serialize out)))
 
 (defn- walk-serialize
   "Walk a data structure and apply serialisation to all values."
   [form]
-  (cond
-    ;; Check for records first (before map? check, since records are
-    ;; map-like)
-    #?(:clj (instance? clojure.lang.IRecord form)
-       :cljs (and (map? form) (satisfies? IRecord form)))
-    (serialize-with-custom form)
-    ;; Then check regular collections
-    (map? form)
-    (into {} (map (fn [[k v]] [(walk-serialize k) (walk-serialize v)]) form))
-    (sequential? form) (mapv walk-serialize form)
-    (set? form) (into #{} (map walk-serialize form))
-    :else (serialize-with-custom form)))
+  ;; Config-registered serialisers win for any type, including map-like
+  ;; types the collection branches would otherwise consume
+  (if-let [config-serializer (get (config/serializers) (type form))]
+    (walk-serialized-output form (config-serializer form))
+    (cond
+      ;; Check for records first (before map? check, since records are
+      ;; map-like)
+      #?(:clj (instance? clojure.lang.IRecord form)
+         :cljs (and (map? form) (satisfies? IRecord form)))
+      (walk-serialized-output form (serialize form))
+      ;; Then check regular collections
+      (map? form)
+      (into {} (map (fn [[k v]] [(walk-serialize k) (walk-serialize v)]) form))
+      (sequential? form) (mapv walk-serialize form)
+      (set? form) (into #{} (map walk-serialize form))
+      :else (walk-serialized-output form (serialize form)))))
 
 (defn serialize-value
   "Serialise a value for snapshot storage.
@@ -128,21 +134,56 @@
   [value]
   (with-out-str (pprint/pprint value)))
 
+(defn ensure-readable-edn
+  "Verify that text reads back as EDN equal to data.
+
+  Returns text unchanged. Throws ex-info when the text cannot be read back
+  (e.g. it contains #object forms) or reads back as something different
+  (e.g. a record, which prints as a plain map and so loses its identity).
+  Either way the value needs a serialiser registered with
+  still.serialize/register-serializer!"
+  [text data context-data]
+  (let [parsed (try (edn/read-string text)
+                    (catch #?(:clj Exception
+                              :cljs :default)
+                      e
+                      (throw (ex-info
+                              (str "Value cannot be written: its printed form "
+                                   "is not readable EDN. The value likely "
+                                   "contains a function or other type without "
+                                   "an EDN representation. Register a "
+                                   "serialiser with "
+                                   "still.serialize/register-serializer!")
+                              (assoc context-data :printed text)
+                              e))))]
+    (when-not (= parsed data)
+      (throw (ex-info
+              (str "Value cannot be written: it does not round-trip through "
+                   "EDN. The value likely contains a record, which prints as "
+                   "a plain map and loses its identity. Register a serialiser "
+                   "with still.serialize/register-serializer!")
+              (assoc context-data :printed text))))
+    text))
+
 (defn format-value-for-source
   "Format a value as source text for insertion into snap! calls.
 
   For strings containing newlines when :multiline-strings? is enabled,
   produces a multi-line string literal with actual newlines instead of \\n escapes.
-  Falls back to pretty-print for all other values."
+  Falls back to pretty-print for all other values.
+
+  Throws ex-info when the formatted text cannot be read back, since inserting
+  it would corrupt the source file."
   [value]
-  (if (and (string? value)
-           (str/includes? value "\n")
-           (:multiline-strings? (config/get-config)))
-    (let [escaped (-> value
-                      (str/replace "\\" "\\\\")
-                      (str/replace "\"" "\\\""))]
-      (str "\"" escaped "\""))
-    (pretty-print value)))
+  (-> (if (and (string? value)
+               (str/includes? value "\n")
+               (:multiline-strings? (config/get-config)))
+          (let [escaped (-> value
+                            (str/replace "\\" "\\\\")
+                            (str/replace "\"" "\\\""))]
+            (str "\"" escaped "\""))
+          (pretty-print value))
+      (ensure-readable-edn value {:value-type (type value)})))
 
 (comment
   (defn normalize-for-comparison
