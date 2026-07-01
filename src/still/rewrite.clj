@@ -10,8 +10,7 @@
 
   Uses rewrite-clj to parse, locate, and modify snap! calls in source files
   while preserving formatting and comments."
-  (:require [clojure.string :as str]
-            [rewrite-clj.parser :as p]
+  (:require [rewrite-clj.parser :as p]
             [rewrite-clj.zip :as z]
             [still.serialize :as serialize]))
 
@@ -49,23 +48,6 @@
           ;; Keep searching
           :else (recur (z/next loc)))))))
 
-;; Per-file cumulative line offset. When multiple snap! calls in the same file
-;; are edited in sequence, each insertion may add lines and shift subsequent
-;; compile-time line numbers. We track the delta and apply it to each lookup.
-(def ^:private line-offsets (atom {}))
-
-(defn ^:private find-snap!-adjusted
-  "Find a snap! call, applying the accumulated offset for this file.
-  If the offset-adjusted line has no snap! call, falls back to the original
-  line and resets the stale offset (handles re-evaluations after prior edits)."
-  [zloc file-path line]
-  (let [offset (get @line-offsets file-path 0)]
-    (if (zero? offset)
-      (find-snap!-at-line zloc line)
-      (or (find-snap!-at-line zloc (+ line offset))
-          (do (swap! line-offsets assoc file-path 0)
-              (find-snap!-at-line zloc line))))))
-
 (defn ^:private count-children
   "Count the number of child nodes in a list form."
   [loc]
@@ -79,6 +61,60 @@
   (snap! value expected) => has expected value (2 args after snap! symbol)"
   [loc]
   (when (snap!-call? loc) (>= (count-children loc) 3))) ; snap! symbol + value + expected
+
+(defn ^:private value-signature
+  "Canonical string of a snap! call's value expression, or nil if it can't be
+  read. Matches the signature the snap! macro computes from the same source
+  form (pr-str with print-length/level unbound)."
+  [loc]
+  (when-let [value-loc (some-> loc
+                               z/down
+                               z/right)]
+    (try (binding [*print-length* nil
+                   *print-level*  nil]
+           (pr-str (z/sexpr value-loc)))
+         (catch Exception _ nil))))
+
+(defn ^:private find-snap!-by-value
+  "Locate the snap! call to edit.
+
+  The value expression's text does not drift when other snap! calls in the
+  same file are edited, so it is the primary key; `line` (compile-time) only
+  breaks ties among calls with identical value expressions.
+
+  - value-sig nil (REPL/explicit path): fall back to line lookup.
+  - exactly one signature match: that call.
+  - several matches: prefer still-bare calls (an already-edited sibling is no
+    longer bare), then the one whose row is nearest to `line`.
+  - no match (value expr that doesn't round-trip, e.g. a fn literal): fall
+    back to line lookup."
+  [zloc line value-sig]
+  (if (nil? value-sig)
+    (find-snap!-at-line zloc line)
+    (let [calls   (loop [loc zloc
+                         acc []]
+                    (if (z/end? loc)
+                      acc
+                      (recur (z/next loc)
+                             (if (snap!-call? loc)
+                               (conj acc
+                                     {:has-expected? (has-expected-value? loc)
+                                      :loc           loc
+                                      :row           (-> loc
+                                                         z/node
+                                                         meta
+                                                         :row)
+                                      :sig           (value-signature loc)})
+                               acc))))
+          matches (filter #(= value-sig (:sig %)) calls)]
+      (case (count matches)
+        0 (find-snap!-at-line zloc line)
+        1 (:loc (first matches))
+        (let [bare (remove :has-expected? matches)
+              pool (if (seq bare) bare matches)]
+          (:loc (apply min-key
+                       #(Math/abs (long (- (long (:row %)) line)))
+                       pool)))))))
 
 (defn ^:private insert-expected-value
   "Insert an expected value as the second argument to a snap! call.
@@ -137,44 +173,38 @@
   - file-path: Absolute path to the source file
   - line: Line number of the snap! call (compile-time, pre-edit)
   - expected-value: The value to insert as expected
+  - value-sig (optional): canonical string of the value expression, used to
+    locate the call regardless of line drift. When omitted or nil, the call
+    is located by line number alone.
 
   Returns:
   - :updated if the expected value was updated
   - :inserted if a new expected value was inserted
   - :not-found if the snap! call wasn't found
   - :error if an error occurred"
-  [file-path line expected-value]
-  (try
-    (let [zloc         (parse-file file-path)
-          before-lines (count (str/split-lines (z/root-string zloc)))
-          snap-loc     (find-snap!-adjusted zloc file-path line)]
-      (cond (nil? snap-loc) {:message (str "No snap! call found at " file-path
+  ([file-path line expected-value]
+   (add-expected-value! file-path line expected-value nil))
+  ([file-path line expected-value value-sig]
+   (try (let [zloc     (parse-file file-path)
+              snap-loc (find-snap!-by-value zloc line value-sig)]
+          (cond
+            (nil? snap-loc) {:message (str "No snap! call found at " file-path
                                            ":" line)
                              :status  :not-found}
             (has-expected-value? snap-loc)
-            (let [updated-loc (replace-expected-value snap-loc expected-value)
-                  delta       (- (count (str/split-lines (z/root-string
-                                                          updated-loc)))
-                                 before-lines)]
+            (let [updated-loc (replace-expected-value snap-loc expected-value)]
               (write-zipper updated-loc file-path)
-              (when-not (zero? delta)
-                (swap! line-offsets update file-path (fnil + 0) delta))
               {:message (str "Updated expected value at " file-path ":" line)
                :status  :updated})
             :else
-            (let [updated-loc (insert-expected-value snap-loc expected-value)
-                  delta       (- (count (str/split-lines (z/root-string
-                                                          updated-loc)))
-                                 before-lines)]
+            (let [updated-loc (insert-expected-value snap-loc expected-value)]
               (write-zipper updated-loc file-path)
-              (when-not (zero? delta)
-                (swap! line-offsets update file-path (fnil + 0) delta))
               {:message (str "Inserted expected value at " file-path ":" line)
                :status  :inserted})))
-    (catch Exception e
-      {:exception e
-       :message   (.getMessage e)
-       :status    :error})))
+        (catch Exception e
+          {:exception e
+           :message   (.getMessage e)
+           :status    :error}))))
 
 (defn remove-expected-value!
   "Remove the expected value from a snap! call.

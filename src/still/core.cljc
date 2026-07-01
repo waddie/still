@@ -252,8 +252,10 @@
   Arguments:
   - value: the (already evaluated) snapshot value
   - compile-time-file: source file captured by the snap! macro, or nil
-  - line: line number of the snap! call (compile-time, pre-edit)"
-  [value compile-time-file line]
+  - line: line number of the snap! call (compile-time, pre-edit)
+  - value-sig: canonical string of the value expression, used to locate the
+    call in source regardless of line drift, or nil"
+  [value compile-time-file line value-sig]
   (let [serialized (serialize/serialize-value value)]
     #?(:clj
          (let [runtime-file  (or compile-time-file (try-get-nrepl-file))
@@ -263,7 +265,10 @@
                               :line          line}]
            (if absolute-path
              (let [result
-                   (rewrite/add-expected-value! absolute-path line serialized)]
+                   (rewrite/add-expected-value! absolute-path
+                                                line
+                                                serialized
+                                                value-sig)]
                (case (:status result)
                  :inserted
                  (do (when-not (in-test-context?)
@@ -300,7 +305,8 @@
              (if absolute-path
                (let [result (rewrite-cljs/add-expected-value! absolute-path
                                                               line
-                                                              serialized)]
+                                                              serialized
+                                                              value-sig)]
                  (case (:status result)
                    :inserted (do (when-not (in-test-context?)
                                    (println "✓ Inline snapshot created at"
@@ -388,9 +394,18 @@
                                   *file*
                                   (when (:ns &env)
                                     (location/file-from-ns (:name (:ns &env)))))
-              line (:line (meta &form))]
+              line      (:line (meta &form))
+              ;; Canonical signature of the value expression, used to
+              ;; locate this snap! call in the source regardless of line
+              ;; drift caused by other calls being edited in the same run.
+              value-sig (binding [*print-length* nil
+                                  *print-level*  nil]
+                          (pr-str value-expr))]
           `(if (or *assert* (in-test-context?))
-             (auto-edit-snapshot! ~value-expr ~compile-time-file ~line)
+             (auto-edit-snapshot! ~value-expr
+                                  ~compile-time-file
+                                  ~line
+                                  ~value-sig)
              true)))
        ([value-expr expected]
         (let [compile-time-file (if (and *file* (not= *file* "NO_SOURCE_PATH"))
